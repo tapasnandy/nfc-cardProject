@@ -1,79 +1,77 @@
 'use client'
 
 import { useState } from 'react'
-import { generateVCard, ProfileContactData } from '@/lib/contact-actions'
-import { UserCheckIcon, UserPlusIcon, Loader2Icon } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { UserPlusIcon, CheckIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface SaveContactButtonProps {
-  profile: ProfileContactData
-  className?: string
+  shortCode: string
+  name: string
+  vCardData: string
 }
 
-export function SaveContactButton({ profile, className = '' }: SaveContactButtonProps) {
-  const [isSaved, setIsSaved] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+export function SaveContactButton({ shortCode, name, vCardData }: SaveContactButtonProps) {
+  const [saved, setSaved] = useState(false)
 
-  const handleSaveContact = () => {
-    setIsLoading(true)
-    try {
-      const vCardString = generateVCard(profile)
-      const blob = new Blob([vCardString], { type: 'text/vcard;charset=utf-8' })
-      const url = URL.createObjectURL(blob)
+  const handleSaveContact = async () => {
+    const safeFilename = `${(name || 'contact').replace(/[^a-zA-Z0-9_-]/g, '_')}.vcf`
+    const vcardEndpoint = `/c/${shortCode}/vcard`
 
-      // Create filename based on contact name
-      const safeName = (profile.name || 'Contact')
-        .trim()
-        .replace(/[^a-zA-Z0-9_\-\s]/g, '')
-        .replace(/\s+/g, '_')
+    // Check if the browser supports sharing files (Android Chrome, modern mobile browsers)
+    if (typeof navigator !== 'undefined' && 'canShare' in navigator) {
+      try {
+        const blob = new Blob([vCardData], { type: 'text/vcard;charset=utf-8' })
+        const file = new File([blob], safeFilename, { type: 'text/vcard;charset=utf-8' })
 
-      const link = document.createElement('a')
-      link.href = url
-      link.setAttribute('download', `${safeName || 'Contact'}.vcf`)
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-
-      // Clean up object URL after brief delay
-      setTimeout(() => URL.revokeObjectURL(url), 2000)
-
-      setIsSaved(true)
-      toast.success('Contact file ready! Open it to save to your contacts.')
-    } catch (error) {
-      console.error('Failed to generate vCard:', error)
-      toast.error('Could not generate contact file. Please try again.')
-    } finally {
-      setIsLoading(false)
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: name,
+            text: `Contact card for ${name}`,
+          })
+          setSaved(true)
+          setTimeout(() => setSaved(false), 4000)
+          return
+        }
+      } catch (err: unknown) {
+        const error = err as Error
+        // User closed or dismissed the share sheet
+        if (error.name === 'AbortError') {
+          return
+        }
+        console.warn('Native share failed, falling back to direct endpoint:', error)
+      }
     }
+
+    // Direct endpoint navigation:
+    // - On iOS Safari: Opens native iOS Contact Card sheet directly
+    // - On Android/Desktop: Downloads the .vcf and prompts "Open" to save into Contacts
+    window.location.href = vcardEndpoint
+    setSaved(true)
+    toast.info("Opening contact! Tap 'Open' or 'Save' to add directly to your address book.", {
+      duration: 5000,
+    })
+    setTimeout(() => setSaved(false), 4000)
   }
 
   return (
-    <button
-      type="button"
+    <Button
       onClick={handleSaveContact}
-      disabled={isLoading}
-      aria-label={`Save ${profile.name} to contacts`}
-      className={`group relative flex flex-col items-center justify-center p-3 sm:p-4 rounded-2xl transition-all duration-200 select-none touch-manipulation active:scale-[0.97] ${
-        isSaved
-          ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-500/20'
-          : 'bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-100 dark:hover:bg-zinc-200 dark:text-zinc-900 shadow-md shadow-zinc-900/10'
-      } ${className}`}
+      size="lg"
+      className="w-full mb-6 rounded-full font-bold shadow-md hover:shadow-lg transition-all text-base py-6 bg-primary text-primary-foreground flex items-center justify-center gap-2"
     >
-      <div className="flex items-center justify-center w-11 h-11 rounded-full mb-1.5 transition-transform group-hover:scale-105">
-        {isLoading ? (
-          <Loader2Icon className="w-5 h-5 animate-spin" />
-        ) : isSaved ? (
-          <UserCheckIcon className="w-5 h-5" />
-        ) : (
-          <UserPlusIcon className="w-5 h-5" />
-        )}
-      </div>
-      <span className="text-xs font-semibold tracking-tight">
-        {isLoading ? 'Saving...' : isSaved ? 'Saved (.vcf)' : 'Save Contact'}
-      </span>
-      <span className="text-[10px] opacity-75 hidden xs:inline mt-0.5">
-        Add to address book
-      </span>
-    </button>
+      {saved ? (
+        <>
+          <CheckIcon className="h-5 w-5" />
+          Contact Opened
+        </>
+      ) : (
+        <>
+          <UserPlusIcon className="h-5 w-5" />
+          Save Contact
+        </>
+      )}
+    </Button>
   )
 }

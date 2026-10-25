@@ -7,6 +7,7 @@ import { MailIcon, PhoneIcon, GlobeIcon, MapPinIcon } from 'lucide-react'
 import Link from 'next/link'
 import { headers } from 'next/headers'
 import { connection } from 'next/server'
+import { SaveContactButton } from './save-contact-button'
 
 export const instant = false
 
@@ -15,6 +16,7 @@ export default async function PublicProfilePage({
 }: {
   params: Promise<{ shortCode: string }>
 }) {
+  await connection()
   const { shortCode } = await params
   const supabase = await createClient()
 
@@ -80,8 +82,6 @@ export default async function PublicProfilePage({
     // Fail silently so the user still sees the profile
   }
 
-  await connection();
-
   const nameParts = profile.name.split(' ');
   const lastName = nameParts.length > 1 ? nameParts.pop() : '';
   const firstName = nameParts.join(' ');
@@ -104,8 +104,6 @@ ADR;type=WORK:;;${(profile.address || '').replace(/\n/g, ' ')};;;;
 NOTE:${(profile.bio || '').replace(/\n/g, '\\n')}
 PHOTO;VALUE=uri:${profile.profile_photo || ''}
 END:VCARD`
-
-  const vCardUrl = `data:text/vcard;charset=utf-8,${encodeURIComponent(vCardData)}`
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 sm:p-4 md:p-8 flex items-start justify-center font-sans">
@@ -154,9 +152,7 @@ END:VCARD`
             )}
           </div>
 
-          <a href={vCardUrl} download={`${profile.name.replace(/\s+/g, '_')}_Contact.vcf`} className="inline-flex h-11 items-center justify-center rounded-full bg-primary px-8 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 w-full mb-6 transition-all font-bold">
-            Save Contact
-          </a>
+          <SaveContactButton shortCode={shortCode} name={profile.name} vCardData={vCardData} />
 
           <div className="space-y-4">
             {profile.website && (
