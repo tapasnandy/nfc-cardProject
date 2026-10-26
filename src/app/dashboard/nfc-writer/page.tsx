@@ -11,10 +11,17 @@ export default async function NFCWriterPage() {
   const { organization } = await requireOrganization()
   const supabase = await createClient()
 
-  // Fetch all cards for this org
+  // Fetch all cards for this org with assigned profile info
   const { data: cards } = await supabase
     .from('cards')
-    .select('id, short_code, status')
+    .select(`
+      id,
+      short_code,
+      status,
+      profiles (
+        id, name, job_title, company, phone, email, website
+      )
+    `)
     .eq('organization_id', organization.id)
     .order('created_at', { ascending: false })
 

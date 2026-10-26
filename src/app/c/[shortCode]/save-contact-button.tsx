@@ -2,76 +2,90 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { UserPlusIcon, CheckIcon } from 'lucide-react'
-import { toast } from 'sonner'
+import { UserPlusIcon, DownloadIcon } from 'lucide-react'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface SaveContactButtonProps {
   shortCode: string
-  name: string
-  vCardData: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  profile: any
 }
 
-export function SaveContactButton({ shortCode, name, vCardData }: SaveContactButtonProps) {
-  const [saved, setSaved] = useState(false)
+export function SaveContactButton({ shortCode, profile }: SaveContactButtonProps) {
+  const [downloading, setDownloading] = useState(false)
+  const vcardUrl = `/c/${shortCode}/contact.vcf`
 
-  const handleSaveContact = async () => {
-    const safeFilename = `${(name || 'contact').replace(/[^a-zA-Z0-9_-]/g, '_')}.vcf`
-    const vcardEndpoint = `/c/${shortCode}/vcard`
+  // Build Android Intent URL to launch native "Add to Contacts" screen directly
+  const buildAndroidIntentUrl = () => {
+    const parts = [
+      'intent:#Intent',
+      'action=android.intent.action.INSERT',
+      'type=vnd.android.cursor.dir/contact',
+    ]
 
-    // Check if the browser supports sharing files (Android Chrome, modern mobile browsers)
-    if (typeof navigator !== 'undefined' && 'canShare' in navigator) {
-      try {
-        const blob = new Blob([vCardData], { type: 'text/vcard;charset=utf-8' })
-        const file = new File([blob], safeFilename, { type: 'text/vcard;charset=utf-8' })
+    if (profile?.name) parts.push(`S.name=${encodeURIComponent(profile.name)}`)
+    if (profile?.phone) parts.push(`S.phone=${encodeURIComponent(profile.phone)}`)
+    if (profile?.email) parts.push(`S.email=${encodeURIComponent(profile.email)}`)
+    if (profile?.company) parts.push(`S.company=${encodeURIComponent(profile.company)}`)
+    if (profile?.job_title) parts.push(`S.job_title=${encodeURIComponent(profile.job_title)}`)
+    if (profile?.address) parts.push(`S.postal=${encodeURIComponent(profile.address)}`)
 
-        if (navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            files: [file],
-            title: name,
-            text: `Contact card for ${name}`,
-          })
-          setSaved(true)
-          setTimeout(() => setSaved(false), 4000)
-          return
-        }
-      } catch (err: unknown) {
-        const error = err as Error
-        // User closed or dismissed the share sheet
-        if (error.name === 'AbortError') {
-          return
-        }
-        console.warn('Native share failed, falling back to direct endpoint:', error)
-      }
+    const notes: string[] = []
+    if (profile?.bio) notes.push(profile.bio)
+    if (profile?.whatsapp) notes.push(`WhatsApp: ${profile.whatsapp}`)
+    if (profile?.website) notes.push(`Website: ${profile.website}`)
+    if (profile?.linkedin) notes.push(`LinkedIn: ${profile.linkedin}`)
+    if (profile?.instagram) notes.push(`Instagram: ${profile.instagram}`)
+    if (profile?.facebook) notes.push(`Facebook: ${profile.facebook}`)
+
+    if (notes.length > 0) {
+      parts.push(`S.notes=${encodeURIComponent(notes.join('\n'))}`)
     }
 
-    // Direct endpoint navigation:
-    // - On iOS Safari: Opens native iOS Contact Card sheet directly
-    // - On Android/Desktop: Downloads the .vcf and prompts "Open" to save into Contacts
-    window.location.href = vcardEndpoint
-    setSaved(true)
-    toast.info("Opening contact! Tap 'Open' or 'Save' to add directly to your address book.", {
-      duration: 5000,
-    })
-    setTimeout(() => setSaved(false), 4000)
+    parts.push('end')
+    return parts.join(';')
+  }
+
+  const handleSaveContact = () => {
+    setDownloading(true)
+    setTimeout(() => setDownloading(false), 3000)
+
+    const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+    const isAndroid = /Android/i.test(userAgent)
+
+    if (isAndroid) {
+      // On Android: Launch native Contacts "Add Contact" screen pre-filled
+      const intentUrl = buildAndroidIntentUrl()
+      window.location.href = intentUrl
+    } else {
+      // On iPhone (iOS Safari) and others:
+      // Direct navigation to /contact.vcf triggers the native Apple Contact Card sheet with the "Save" button
+      window.location.href = vcardUrl
+    }
   }
 
   return (
-    <Button
-      onClick={handleSaveContact}
-      size="lg"
-      className="w-full mb-6 rounded-full font-bold shadow-md hover:shadow-lg transition-all text-base py-6 bg-primary text-primary-foreground flex items-center justify-center gap-2"
-    >
-      {saved ? (
-        <>
-          <CheckIcon className="h-5 w-5" />
-          Contact Opened
-        </>
-      ) : (
-        <>
-          <UserPlusIcon className="h-5 w-5" />
-          Save Contact
-        </>
-      )}
-    </Button>
+    <div className="w-full mb-6 space-y-2">
+      <Button
+        onClick={handleSaveContact}
+        size="lg"
+        className="w-full rounded-full font-bold shadow-md hover:shadow-lg transition-all text-base py-6 bg-primary text-primary-foreground flex items-center justify-center gap-2 cursor-pointer"
+      >
+        <UserPlusIcon className="h-5 w-5" />
+        {downloading ? 'Opening Contacts...' : 'Save to Contacts'}
+      </Button>
+
+      {/* Fallback button for downloading .vcf directly if needed */}
+      <div className="text-center">
+        <a
+          href={vcardUrl}
+          download={`${(profile?.name || 'contact').replace(/[^a-zA-Z0-9_-]/g, '_')}.vcf`}
+          className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 underline underline-offset-2 transition-colors"
+        >
+          <DownloadIcon className="h-3 w-3" />
+          Or download .vcf contact card
+        </a>
+      </div>
+    </div>
   )
 }

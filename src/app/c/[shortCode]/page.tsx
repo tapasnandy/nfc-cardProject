@@ -152,7 +152,7 @@ END:VCARD`
             )}
           </div>
 
-          <SaveContactButton shortCode={shortCode} name={profile.name} vCardData={vCardData} />
+          <SaveContactButton shortCode={shortCode} profile={profile} />
 
           <div className="space-y-4">
             {profile.website && (
