@@ -2,7 +2,6 @@ import { createClient } from '@/utils/supabase/server'
 import { notFound } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
 import { MailIcon, PhoneIcon, GlobeIcon, MapPinIcon } from 'lucide-react'
 import Link from 'next/link'
 import { headers } from 'next/headers'
@@ -81,29 +80,6 @@ export default async function PublicProfilePage({
     console.error('Failed to log analytics:', e)
     // Fail silently so the user still sees the profile
   }
-
-  const nameParts = profile.name.split(' ');
-  const lastName = nameParts.length > 1 ? nameParts.pop() : '';
-  const firstName = nameParts.join(' ');
-
-  // Create vCard string for "Save Contact" button
-  const vCardData = `BEGIN:VCARD
-VERSION:3.0
-N:${lastName};${firstName};;;
-FN:${profile.name}
-ORG:${profile.company || ''}
-TITLE:${profile.job_title || ''}
-TEL;type=CELL:${profile.phone || ''}
-TEL;type=WORK,MSG:${profile.whatsapp ? profile.whatsapp.replace(/[^0-9+]/g, '') : ''}
-EMAIL;type=INTERNET:${profile.email || ''}
-URL:${profile.website || ''}
-URL;type=LinkedIn:${profile.linkedin || ''}
-URL;type=Instagram:${profile.instagram || ''}
-URL;type=Facebook:${profile.facebook || ''}
-ADR;type=WORK:;;${(profile.address || '').replace(/\n/g, ' ')};;;;
-NOTE:${(profile.bio || '').replace(/\n/g, '\\n')}
-PHOTO;VALUE=uri:${profile.profile_photo || ''}
-END:VCARD`
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 sm:p-4 md:p-8 flex items-start justify-center font-sans">

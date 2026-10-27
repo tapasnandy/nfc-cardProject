@@ -3,7 +3,7 @@ import { createClient } from '@/utils/supabase/server'
 import { ProfileForm } from '../profile-form'
 import { connection } from 'next/server'
 import { notFound } from 'next/navigation'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
 import Link from 'next/link'
 import { ChevronLeftIcon } from 'lucide-react'
 

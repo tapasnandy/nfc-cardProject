@@ -89,7 +89,7 @@ export function CardList({ initialCards, profiles, organizationId }: { initialCa
           <div className="p-8 text-center text-muted-foreground flex flex-col items-center">
             <SmartphoneNfcIcon className="h-12 w-12 mb-4 text-muted-foreground/50" />
             <p>You do not have any NFC cards yet.</p>
-            <p className="text-sm">Click "Create New Card" to generate your first virtual card.</p>
+            <p className="text-sm">Click &quot;Create New Card&quot; to generate your first virtual card.</p>
           </div>
         ) : (
           <Table>

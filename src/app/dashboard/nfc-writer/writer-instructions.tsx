@@ -9,16 +9,15 @@ import QRCode from 'react-qr-code'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function WriterInstructions({ cards }: { cards: any[] }) {
-  const [selectedCard, setSelectedCard] = useState<string>('')
-  const [appUrl, setAppUrl] = useState('')
+  const [selectedCard, setSelectedCard] = useState<string>(cards.length > 0 ? cards[0].short_code : '')
+  const [mounted, setMounted] = useState(false)
   const [qrType, setQrType] = useState<'url' | 'vcard'>('url')
 
   useEffect(() => {
-    setAppUrl(window.location.origin)
-    if (cards.length > 0 && !selectedCard) {
-      setSelectedCard(cards[0].short_code)
-    }
-  }, [cards, selectedCard])
+    setMounted(true)
+  }, [])
+
+  const appUrl = mounted && typeof window !== 'undefined' ? window.location.origin : ''
 
   const currentCard = cards.find(c => c.short_code === selectedCard)
   const profile = currentCard?.profiles ? (Array.isArray(currentCard.profiles) ? currentCard.profiles[0] : currentCard.profiles) : null

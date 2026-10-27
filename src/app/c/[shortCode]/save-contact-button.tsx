@@ -4,11 +4,24 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { UserPlusIcon, DownloadIcon } from 'lucide-react'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+interface ProfileData {
+  name?: string
+  phone?: string
+  email?: string
+  company?: string
+  job_title?: string
+  address?: string
+  bio?: string
+  whatsapp?: string
+  website?: string
+  linkedin?: string
+  instagram?: string
+  facebook?: string
+}
+
 interface SaveContactButtonProps {
   shortCode: string
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  profile: any
+  profile: ProfileData | null
 }
 
 export function SaveContactButton({ shortCode, profile }: SaveContactButtonProps) {
@@ -56,11 +69,11 @@ export function SaveContactButton({ shortCode, profile }: SaveContactButtonProps
     if (isAndroid) {
       // On Android: Launch native Contacts "Add Contact" screen pre-filled
       const intentUrl = buildAndroidIntentUrl()
-      window.location.href = intentUrl
+      window.location.assign(intentUrl)
     } else {
       // On iPhone (iOS Safari) and others:
       // Direct navigation to /contact.vcf triggers the native Apple Contact Card sheet with the "Save" button
-      window.location.href = vcardUrl
+      window.location.assign(vcardUrl)
     }
   }
 
