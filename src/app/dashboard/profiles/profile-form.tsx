@@ -112,59 +112,61 @@ export function ProfileForm({ profile, organizationId, redirectAfterSave }: { pr
         </div>
 
         <form action={onSubmit} className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
+              <Label htmlFor="name">Full Name *</Label>
               <Input id="name" name="name" defaultValue={profile?.name || ""} required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="job_title">Job Title</Label>
-              <Input id="job_title" name="job_title" defaultValue={profile?.job_title || ""} />
+              <Input id="job_title" name="job_title" defaultValue={profile?.job_title || ""} placeholder="e.g. Founder & CEO" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="company">Company</Label>
-              <Input id="company" name="company" defaultValue={profile?.company || ""} />
+              <Input id="company" name="company" defaultValue={profile?.company || ""} placeholder="e.g. Acme Inc." />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Public Email</Label>
-              <Input id="email" name="email" type="email" defaultValue={profile?.email || ""} />
+              <Input id="email" name="email" type="email" defaultValue={profile?.email || ""} placeholder="you@company.com" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number</Label>
-              <Input id="phone" name="phone" defaultValue={profile?.phone || ""} />
+              <Input id="phone" name="phone" defaultValue={profile?.phone || ""} placeholder="+1 234 567 890" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="whatsapp">WhatsApp</Label>
-              <Input id="whatsapp" name="whatsapp" defaultValue={profile?.whatsapp || ""} />
+              <Input id="whatsapp" name="whatsapp" defaultValue={profile?.whatsapp || ""} placeholder="+1 234 567 890" />
             </div>
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="bio">Bio</Label>
-            <Textarea id="bio" name="bio" defaultValue={profile?.bio || ""} rows={3} />
+            <Label htmlFor="bio">Bio / About</Label>
+            <Textarea id="bio" name="bio" defaultValue={profile?.bio || ""} rows={3} placeholder="Brief description about yourself or what you do..." />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="website">Website</Label>
-            <Input id="website" name="website" type="url" defaultValue={profile?.website || ""} placeholder="https://" />
+            <Input id="website" name="website" type="url" defaultValue={profile?.website || ""} placeholder="https://example.com" />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="linkedin">LinkedIn URL</Label>
-              <Input id="linkedin" name="linkedin" defaultValue={profile?.linkedin || ""} placeholder="https://linkedin.com/in/..." />
+              <Input id="linkedin" name="linkedin" defaultValue={profile?.linkedin || ""} placeholder="https://linkedin.com/in/username" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="instagram">Instagram URL</Label>
-              <Input id="instagram" name="instagram" defaultValue={profile?.instagram || ""} placeholder="https://instagram.com/..." />
+              <Input id="instagram" name="instagram" defaultValue={profile?.instagram || ""} placeholder="https://instagram.com/username" />
             </div>
           </div>
           
           <input type="hidden" name="profile_photo" value={avatarUrl} />
 
-          <Button type="submit" disabled={isPending}>
-            {isPending ? 'Saving...' : 'Save Profile'}
-          </Button>
+          <div className="pt-2">
+            <Button type="submit" disabled={isPending} className="w-full sm:w-auto min-w-[140px]">
+              {isPending ? 'Saving...' : 'Save Profile'}
+            </Button>
+          </div>
         </form>
       </CardContent>
     </Card>

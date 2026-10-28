@@ -95,105 +95,76 @@ export function DigitalBusinessCard({ profile, previewMode = false, shortCode }:
         </div>
 
         {/* ======================================================== */}
-        {/* 4 PRIMARY CONTACT ACTION BUTTONS (MOBILE-FIRST 2x2 GRID) */}
+        {/* QUICK CONTACT ACTION BUTTONS (CALL, WHATSAPP, WEBSITE)   */}
+        {/* ======================================================== */}
+        {(callUrl || whatsappUrl || websiteUrl) && (
+          <div className="mb-4">
+            <div className={`grid gap-2 sm:gap-3 ${
+              [callUrl, whatsappUrl, websiteUrl].filter(Boolean).length === 3
+                ? 'grid-cols-3'
+                : [callUrl, whatsappUrl, websiteUrl].filter(Boolean).length === 2
+                ? 'grid-cols-2'
+                : 'grid-cols-1'
+            }`}>
+              {/* 1. CALL BUTTON */}
+              {callUrl && (
+                <a
+                  href={callUrl}
+                  aria-label={`Call ${profile.name}`}
+                  className="group flex flex-col items-center justify-center p-3 rounded-2xl bg-zinc-100 hover:bg-zinc-200/80 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-zinc-900 dark:text-zinc-100 transition-all active:scale-[0.97] touch-manipulation border border-zinc-200/60 dark:border-zinc-700/60 shadow-sm"
+                >
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-600 text-white mb-1.5 shadow-sm shadow-blue-500/20 group-hover:scale-105 transition-transform">
+                    <PhoneCallIcon className="w-5 h-5" />
+                  </div>
+                  <span className="text-xs font-semibold tracking-tight">Call</span>
+                </a>
+              )}
+
+              {/* 2. WHATSAPP BUTTON */}
+              {whatsappUrl && (
+                <a
+                  href={whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Chat with ${profile.name} on WhatsApp`}
+                  className="group flex flex-col items-center justify-center p-3 rounded-2xl bg-emerald-50 hover:bg-emerald-100/80 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50 text-emerald-950 dark:text-emerald-100 transition-all active:scale-[0.97] touch-manipulation border border-emerald-200/60 dark:border-emerald-800/60 shadow-sm"
+                >
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-emerald-600 text-white mb-1.5 shadow-sm shadow-emerald-500/20 group-hover:scale-105 transition-transform">
+                    <MessageCircleIcon className="w-5 h-5" />
+                  </div>
+                  <span className="text-xs font-semibold tracking-tight text-emerald-900 dark:text-emerald-200">
+                    WhatsApp
+                  </span>
+                </a>
+              )}
+
+              {/* 3. WEBSITE BUTTON */}
+              {websiteUrl && (
+                <a
+                  href={websiteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Visit ${profile.name}'s website`}
+                  className="group flex flex-col items-center justify-center p-3 rounded-2xl bg-zinc-100 hover:bg-zinc-200/80 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-zinc-900 dark:text-zinc-100 transition-all active:scale-[0.97] touch-manipulation border border-zinc-200/60 dark:border-zinc-700/60 shadow-sm"
+                >
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-indigo-600 text-white mb-1.5 shadow-sm shadow-indigo-500/20 group-hover:scale-105 transition-transform">
+                    <GlobeIcon className="w-5 h-5" />
+                  </div>
+                  <span className="text-xs font-semibold tracking-tight">Website</span>
+                  <span className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate max-w-[80px] mt-0.5">
+                    {displayHost}
+                  </span>
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* PRIMARY "SAVE TO CONTACTS" HERO BUTTON                    */}
         {/* ======================================================== */}
         <div className="mb-6">
-          <div className="grid grid-cols-2 gap-3">
-            
-            {/* 1. CALL BUTTON */}
-            {callUrl ? (
-              <a
-                href={callUrl}
-                aria-label={`Call ${profile.name}`}
-                className="group flex flex-col items-center justify-center p-3 sm:p-4 rounded-2xl bg-zinc-100 hover:bg-zinc-200/80 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-zinc-900 dark:text-zinc-100 transition-all active:scale-[0.97] touch-manipulation border border-zinc-200/60 dark:border-zinc-700/60 shadow-sm"
-              >
-                <div className="flex items-center justify-center w-11 h-11 rounded-full bg-blue-600 text-white mb-1.5 shadow-sm shadow-blue-500/20 group-hover:scale-105 transition-transform">
-                  <PhoneCallIcon className="w-5 h-5" />
-                </div>
-                <span className="text-xs font-semibold tracking-tight">Call</span>
-                <span className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate max-w-[120px] mt-0.5">
-                  {profile.phone}
-                </span>
-              </a>
-            ) : (
-              <div 
-                aria-disabled="true"
-                className="flex flex-col items-center justify-center p-3 sm:p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-850/50 text-zinc-400 dark:text-zinc-600 border border-dashed border-zinc-200 dark:border-zinc-800 select-none cursor-not-allowed"
-              >
-                <div className="flex items-center justify-center w-11 h-11 rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600 mb-1.5">
-                  <PhoneCallIcon className="w-5 h-5 opacity-60" />
-                </div>
-                <span className="text-xs font-medium">Call</span>
-                <span className="text-[10px] opacity-60 mt-0.5">Not provided</span>
-              </div>
-            )}
-
-            {/* 2. WHATSAPP BUTTON */}
-            {whatsappUrl ? (
-              <a
-                href={whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={`Chat with ${profile.name} on WhatsApp`}
-                className="group flex flex-col items-center justify-center p-3 sm:p-4 rounded-2xl bg-emerald-50 hover:bg-emerald-100/80 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50 text-emerald-950 dark:text-emerald-100 transition-all active:scale-[0.97] touch-manipulation border border-emerald-200/60 dark:border-emerald-800/60 shadow-sm"
-              >
-                <div className="flex items-center justify-center w-11 h-11 rounded-full bg-emerald-600 text-white mb-1.5 shadow-sm shadow-emerald-500/20 group-hover:scale-105 transition-transform">
-                  <MessageCircleIcon className="w-5 h-5" />
-                </div>
-                <span className="text-xs font-semibold tracking-tight text-emerald-900 dark:text-emerald-200">
-                  WhatsApp
-                </span>
-                <span className="text-[10px] text-emerald-700/80 dark:text-emerald-300/70 mt-0.5">
-                  Chat directly
-                </span>
-              </a>
-            ) : (
-              <div 
-                aria-disabled="true"
-                className="flex flex-col items-center justify-center p-3 sm:p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-850/50 text-zinc-400 dark:text-zinc-600 border border-dashed border-zinc-200 dark:border-zinc-800 select-none cursor-not-allowed"
-              >
-                <div className="flex items-center justify-center w-11 h-11 rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600 mb-1.5">
-                  <MessageCircleIcon className="w-5 h-5 opacity-60" />
-                </div>
-                <span className="text-xs font-medium">WhatsApp</span>
-                <span className="text-[10px] opacity-60 mt-0.5">Not provided</span>
-              </div>
-            )}
-
-            {/* 3. WEBSITE BUTTON */}
-            {websiteUrl ? (
-              <a
-                href={websiteUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={`Visit ${profile.name}'s website`}
-                className="group flex flex-col items-center justify-center p-3 sm:p-4 rounded-2xl bg-zinc-100 hover:bg-zinc-200/80 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-zinc-900 dark:text-zinc-100 transition-all active:scale-[0.97] touch-manipulation border border-zinc-200/60 dark:border-zinc-700/60 shadow-sm"
-              >
-                <div className="flex items-center justify-center w-11 h-11 rounded-full bg-indigo-600 text-white mb-1.5 shadow-sm shadow-indigo-500/20 group-hover:scale-105 transition-transform">
-                  <GlobeIcon className="w-5 h-5" />
-                </div>
-                <span className="text-xs font-semibold tracking-tight">Website</span>
-                <span className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate max-w-[120px] mt-0.5">
-                  {displayHost}
-                </span>
-              </a>
-            ) : (
-              <div 
-                aria-disabled="true"
-                className="flex flex-col items-center justify-center p-3 sm:p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-850/50 text-zinc-400 dark:text-zinc-600 border border-dashed border-zinc-200 dark:border-zinc-800 select-none cursor-not-allowed"
-              >
-                <div className="flex items-center justify-center w-11 h-11 rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600 mb-1.5">
-                  <GlobeIcon className="w-5 h-5 opacity-60" />
-                </div>
-                <span className="text-xs font-medium">Website</span>
-                <span className="text-[10px] opacity-60 mt-0.5">Not provided</span>
-              </div>
-            )}
-
-            {/* 4. SAVE CONTACT BUTTON */}
-            <SaveContactButton shortCode={shortCode} profile={profile} />
-
-          </div>
+          <SaveContactButton shortCode={shortCode} profile={profile} />
         </div>
 
         {/* ======================================================== */}

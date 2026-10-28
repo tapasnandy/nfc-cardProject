@@ -257,13 +257,13 @@ export function WriterInstructions({ cards }: { cards: any[] }) {
                 {writingNfc ? 'Touch card to back of phone now...' : 'Write Direct Contact to Card'}
               </Button>
 
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 {directVCardString && (
                   <Button 
                     onClick={() => copyToClipboard(directVCardString, 'vCard Data')} 
                     variant="outline" 
                     size="sm" 
-                    className="w-full text-xs"
+                    className="w-full text-xs h-9"
                   >
                     <CopyIcon className="h-3.5 w-3.5 mr-1.5" /> Copy Contact Data
                   </Button>
@@ -274,7 +274,7 @@ export function WriterInstructions({ cards }: { cards: any[] }) {
                     download={`${(profile?.name || 'contact').replace(/[^a-zA-Z0-9]/g, '_')}.vcf`}
                     className="w-full"
                   >
-                    <Button variant="outline" size="sm" className="w-full text-xs">
+                    <Button variant="outline" size="sm" className="w-full text-xs h-9">
                       Download .vcf
                     </Button>
                   </a>
