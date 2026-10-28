@@ -6,7 +6,6 @@ import {
 } from '@/lib/contact-actions'
 import { SaveContactButton } from '@/app/c/[shortCode]/save-contact-button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Card, CardContent } from '@/components/ui/card'
 import { 
   PhoneCallIcon, 
   MessageCircleIcon, 
@@ -20,9 +19,10 @@ import Link from 'next/link'
 interface DigitalBusinessCardProps {
   profile: ProfileContactData
   previewMode?: boolean
+  shortCode?: string
 }
 
-export function DigitalBusinessCard({ profile, previewMode = false }: DigitalBusinessCardProps) {
+export function DigitalBusinessCard({ profile, previewMode = false, shortCode }: DigitalBusinessCardProps) {
   const callUrl = getCallUrl(profile.phone)
   const whatsappUrl = getWhatsAppUrl(profile.whatsapp, profile.phone)
   const websiteUrl = getSafeWebsiteUrl(profile.website)
@@ -191,7 +191,7 @@ export function DigitalBusinessCard({ profile, previewMode = false }: DigitalBus
             )}
 
             {/* 4. SAVE CONTACT BUTTON */}
-            <SaveContactButton profile={profile} />
+            <SaveContactButton shortCode={shortCode} profile={profile} />
 
           </div>
         </div>

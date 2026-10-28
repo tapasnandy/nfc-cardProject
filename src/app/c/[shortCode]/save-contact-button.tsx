@@ -4,29 +4,32 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { UserPlusIcon, DownloadIcon } from 'lucide-react'
 
-interface ProfileData {
-  name?: string
-  phone?: string
-  email?: string
-  company?: string
-  job_title?: string
-  address?: string
-  bio?: string
-  whatsapp?: string
-  website?: string
-  linkedin?: string
-  instagram?: string
-  facebook?: string
+import { generateVCard } from '@/lib/contact-actions'
+
+export interface ProfileData {
+  name?: string | null
+  phone?: string | null
+  email?: string | null
+  company?: string | null
+  job_title?: string | null
+  address?: string | null
+  bio?: string | null
+  whatsapp?: string | null
+  website?: string | null
+  linkedin?: string | null
+  instagram?: string | null
+  facebook?: string | null
 }
 
-interface SaveContactButtonProps {
-  shortCode: string
+export interface SaveContactButtonProps {
+  shortCode?: string
   profile: ProfileData | null
+  className?: string
 }
 
-export function SaveContactButton({ shortCode, profile }: SaveContactButtonProps) {
+export function SaveContactButton({ shortCode, profile, className = '' }: SaveContactButtonProps) {
   const [downloading, setDownloading] = useState(false)
-  const vcardUrl = `/c/${shortCode}/contact.vcf`
+  const vcardUrl = shortCode ? `/c/${shortCode}/contact.vcf` : ''
 
   // Build Android Intent URL to launch native "Add to Contacts" screen directly
   const buildAndroidIntentUrl = () => {
@@ -66,18 +69,51 @@ export function SaveContactButton({ shortCode, profile }: SaveContactButtonProps
     const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : ''
     const isAndroid = /Android/i.test(userAgent)
 
-    const targetUrl = isAndroid ? buildAndroidIntentUrl() : vcardUrl
+    let targetUrl = isAndroid ? buildAndroidIntentUrl() : vcardUrl
+    let objectUrlToRevoke: string | null = null
 
-    // Trigger native OS handler via anchor click (preserves user gesture for Android Intent and iOS Contact Card)
-    const link = document.createElement('a')
-    link.href = targetUrl
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    if (!isAndroid && !vcardUrl && profile) {
+      try {
+        const vCardString = generateVCard({
+          name: profile.name || 'Contact',
+          phone: profile.phone,
+          email: profile.email,
+          company: profile.company,
+          job_title: profile.job_title,
+          address: profile.address,
+          bio: profile.bio,
+          whatsapp: profile.whatsapp,
+          website: profile.website,
+          linkedin: profile.linkedin,
+          instagram: profile.instagram,
+          facebook: profile.facebook,
+        })
+        const blob = new Blob([vCardString], { type: 'text/vcard;charset=utf-8' })
+        targetUrl = URL.createObjectURL(blob)
+        objectUrlToRevoke = targetUrl
+      } catch (err) {
+        console.error('Failed to generate fallback vCard:', err)
+      }
+    }
+
+    if (targetUrl) {
+      // Trigger native OS handler via anchor click (preserves user gesture for Android Intent and iOS Contact Card)
+      const link = document.createElement('a')
+      link.href = targetUrl
+      if (objectUrlToRevoke) {
+        link.download = `${(profile?.name || 'contact').replace(/[^a-zA-Z0-9_-]/g, '_')}.vcf`
+      }
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      if (objectUrlToRevoke) {
+        setTimeout(() => URL.revokeObjectURL(objectUrlToRevoke!), 2000)
+      }
+    }
   }
 
   return (
-    <div className="w-full mb-6 space-y-2">
+    <div className={`w-full mb-6 space-y-2 ${className}`}>
       <Button
         onClick={handleSaveContact}
         size="lg"
@@ -88,16 +124,18 @@ export function SaveContactButton({ shortCode, profile }: SaveContactButtonProps
       </Button>
 
       {/* Fallback button for downloading .vcf directly if needed */}
-      <div className="text-center">
-        <a
-          href={vcardUrl}
-          download={`${(profile?.name || 'contact').replace(/[^a-zA-Z0-9_-]/g, '_')}.vcf`}
-          className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 underline underline-offset-2 transition-colors"
-        >
-          <DownloadIcon className="h-3 w-3" />
-          Or download .vcf contact card
-        </a>
-      </div>
+      {vcardUrl && (
+        <div className="text-center">
+          <a
+            href={vcardUrl}
+            download={`${(profile?.name || 'contact').replace(/[^a-zA-Z0-9_-]/g, '_')}.vcf`}
+            className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 underline underline-offset-2 transition-colors"
+          >
+            <DownloadIcon className="h-3 w-3" />
+            Or download .vcf contact card
+          </a>
+        </div>
+      )}
     </div>
   )
 }
