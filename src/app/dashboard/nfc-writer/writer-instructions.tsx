@@ -1,23 +1,24 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { CopyIcon, SmartphoneIcon, InfoIcon, QrCodeIcon, ContactIcon, GlobeIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import QRCode from 'react-qr-code'
 
+const emptySubscribe = () => () => {}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function WriterInstructions({ cards }: { cards: any[] }) {
   const [selectedCard, setSelectedCard] = useState<string>(cards.length > 0 ? cards[0].short_code : '')
-  const [mounted, setMounted] = useState(false)
   const [qrType, setQrType] = useState<'url' | 'vcard'>('url')
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  const appUrl = mounted && typeof window !== 'undefined' ? window.location.origin : ''
+  const appUrl = useSyncExternalStore(
+    emptySubscribe,
+    () => window.location.origin,
+    () => ''
+  )
 
   const currentCard = cards.find(c => c.short_code === selectedCard)
   const profile = currentCard?.profiles ? (Array.isArray(currentCard.profiles) ? currentCard.profiles[0] : currentCard.profiles) : null

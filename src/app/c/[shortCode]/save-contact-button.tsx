@@ -66,15 +66,14 @@ export function SaveContactButton({ shortCode, profile }: SaveContactButtonProps
     const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : ''
     const isAndroid = /Android/i.test(userAgent)
 
-    if (isAndroid) {
-      // On Android: Launch native Contacts "Add Contact" screen pre-filled
-      const intentUrl = buildAndroidIntentUrl()
-      window.location.assign(intentUrl)
-    } else {
-      // On iPhone (iOS Safari) and others:
-      // Direct navigation to /contact.vcf triggers the native Apple Contact Card sheet with the "Save" button
-      window.location.assign(vcardUrl)
-    }
+    const targetUrl = isAndroid ? buildAndroidIntentUrl() : vcardUrl
+
+    // Trigger native OS handler via anchor click (preserves user gesture for Android Intent and iOS Contact Card)
+    const link = document.createElement('a')
+    link.href = targetUrl
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   return (
