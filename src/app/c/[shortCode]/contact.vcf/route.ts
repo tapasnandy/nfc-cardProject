@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { connection } from 'next/server'
+import { generateVCard } from '@/lib/contact-actions'
 
 export const instant = false
 
@@ -33,35 +34,8 @@ export async function GET(
     return new Response('Profile not assigned', { status: 404 })
   }
 
-  const nameParts = (profile.name || 'Contact').trim().split(' ')
-  const lastName = nameParts.length > 1 ? nameParts.pop() : ''
-  const firstName = nameParts.join(' ')
-
-  const cleanPhone = (profile.phone || '').replace(/[^0-9+]/g, '')
-  const cleanWhatsapp = (profile.whatsapp || '').replace(/[^0-9+]/g, '')
-
-  const vCardLines = [
-    'BEGIN:VCARD',
-    'VERSION:3.0',
-    `N:${lastName};${firstName};;;`,
-    `FN:${profile.name}`,
-    profile.company ? `ORG:${profile.company}` : '',
-    profile.job_title ? `TITLE:${profile.job_title}` : '',
-    cleanPhone ? `TEL;TYPE=CELL:${cleanPhone}` : '',
-    cleanWhatsapp ? `TEL;TYPE=WORK,MSG:${cleanWhatsapp}` : '',
-    profile.email ? `EMAIL;TYPE=INTERNET:${profile.email}` : '',
-    profile.website ? `URL:${profile.website}` : '',
-    profile.linkedin ? `URL;type=LinkedIn:${profile.linkedin}` : '',
-    profile.instagram ? `URL;type=Instagram:${profile.instagram}` : '',
-    profile.facebook ? `URL;type=Facebook:${profile.facebook}` : '',
-    profile.address ? `ADR;TYPE=WORK:;;${profile.address.replace(/\r?\n/g, ' ')};;;;` : '',
-    profile.bio ? `NOTE:${profile.bio.replace(/\r?\n/g, '\\n')}` : '',
-    profile.profile_photo ? `PHOTO;VALUE=uri:${profile.profile_photo}` : '',
-    'END:VCARD',
-  ].filter(Boolean)
-
-  const vCardData = vCardLines.join('\r\n')
-  const safeFilename = `${(profile.name || 'contact').replace(/[^a-zA-Z0-9_-]/g, '_')}.vcf`
+  const vCardData = generateVCard(profile)
+  const safeFilename = `${(profile.name || 'contact').trim().replace(/[^a-zA-Z0-9_-]/g, '_') || 'contact'}.vcf`
 
   const userAgent = request.headers.get('user-agent') || ''
   const isIOS = /iPhone|iPad|iPod/i.test(userAgent)
