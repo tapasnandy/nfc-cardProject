@@ -1,9 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Button } from '@/components/ui/button'
+import { useState, useSyncExternalStore } from 'react'
 import { UserPlusIcon, DownloadIcon, CheckIcon } from 'lucide-react'
-import { generateVCard } from '@/lib/contact-actions'
 import { toast } from 'sonner'
 
 export interface ProfileData {
@@ -28,111 +26,123 @@ export interface SaveContactButtonProps {
   className?: string
 }
 
-export function SaveContactButton({ shortCode, profile, className = '' }: SaveContactButtonProps) {
-  const [downloading, setDownloading] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const vcardUrl = shortCode ? `/c/${shortCode}/contact.vcf` : ''
+const emptySubscribe = () => () => {}
 
+function useUserAgent() {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => (typeof navigator !== 'undefined' ? navigator.userAgent : ''),
+    () => ''
+  )
+}
+
+function useOrigin() {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => (typeof window !== 'undefined' ? window.location.origin : ''),
+    () => ''
+  )
+}
+
+function buildAndroidIntentUrl(profile: ProfileData | null, fallbackUrl: string): string {
+  if (!profile) return ''
+
+  const parts: string[] = [
+    'intent://vnd.android.cursor.dir/contact/#Intent',
+    'action=android.intent.action.INSERT',
+    'type=vnd.android.cursor.dir/contact',
+  ]
+
+  if (profile.name) {
+    parts.push(`S.name=${encodeURIComponent(profile.name.trim())}`)
+  }
+
+  const phone = (profile.phone || profile.whatsapp || '').trim()
+  if (phone) {
+    parts.push(`S.phone=${encodeURIComponent(phone)}`)
+  }
+
+  if (profile.email) {
+    parts.push(`S.email=${encodeURIComponent(profile.email.trim())}`)
+  }
+
+  if (profile.company) {
+    parts.push(`S.company=${encodeURIComponent(profile.company.trim())}`)
+  }
+
+  if (profile.job_title) {
+    parts.push(`S.job_title=${encodeURIComponent(profile.job_title.trim())}`)
+  }
+
+  if (profile.address) {
+    const cleanAddress = profile.address.trim().replace(/\r?\n/g, ', ')
+    parts.push(`S.postal=${encodeURIComponent(cleanAddress)}`)
+  }
+
+  const notesList: string[] = []
+  if (profile.bio) notesList.push(profile.bio.trim())
+  if (profile.whatsapp && profile.whatsapp !== profile.phone) {
+    notesList.push(`WhatsApp: ${profile.whatsapp.trim()}`)
+  }
+  if (profile.website) notesList.push(`Website: ${profile.website.trim()}`)
+  if (profile.linkedin) notesList.push(`LinkedIn: ${profile.linkedin.trim()}`)
+  if (profile.instagram) notesList.push(`Instagram: ${profile.instagram.trim()}`)
+  if (profile.facebook) notesList.push(`Facebook: ${profile.facebook.trim()}`)
+
+  if (notesList.length > 0) {
+    parts.push(`S.notes=${encodeURIComponent(notesList.join('\n'))}`)
+  }
+
+  if (fallbackUrl) {
+    parts.push(`S.browser_fallback_url=${encodeURIComponent(fallbackUrl)}`)
+  }
+
+  parts.push('end')
+  return parts.join(';') + ';'
+}
+
+export function SaveContactButton({ shortCode, profile, className = '' }: SaveContactButtonProps) {
+  const [saved, setSaved] = useState(false)
+  const userAgent = useUserAgent()
+  const origin = useOrigin()
+
+  const isIOS = /iPad|iPhone|iPod/i.test(userAgent)
+  const isAndroid = /Android/i.test(userAgent)
+
+  const vcardUrl = shortCode ? `/c/${shortCode}/contact.vcf` : ''
   const safeName = (profile?.name || 'Contact').trim().replace(/[^a-zA-Z0-9_-]/g, '_') || 'Contact'
   const safeFilename = `${safeName}.vcf`
 
-  const triggerBlobDownload = (vCardString: string) => {
-    const blob = new Blob([vCardString], { type: 'text/vcard;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', safeFilename)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    setTimeout(() => URL.revokeObjectURL(url), 3000)
+  const fullFallbackUrl = origin && vcardUrl ? `${origin}${vcardUrl}` : ''
+  const androidIntentUrl = buildAndroidIntentUrl(profile, fullFallbackUrl)
+
+  // Target href for the main action
+  let href = vcardUrl || '#'
+  let downloadAttr: string | undefined = undefined
+
+  if (isAndroid && androidIntentUrl) {
+    href = androidIntentUrl
+  } else if (isIOS) {
+    href = vcardUrl || '#'
+  } else {
+    // Desktop / other
+    href = vcardUrl || '#'
+    downloadAttr = safeFilename
   }
 
-  const handleSaveContact = async () => {
-    if (downloading) return
-    setDownloading(true)
-
-    try {
-      const vCardString = generateVCard({
-        name: profile?.name || 'Contact',
-        phone: profile?.phone,
-        email: profile?.email,
-        company: profile?.company,
-        job_title: profile?.job_title,
-        address: profile?.address,
-        bio: profile?.bio,
-        whatsapp: profile?.whatsapp,
-        website: profile?.website,
-        linkedin: profile?.linkedin,
-        instagram: profile?.instagram,
-        facebook: profile?.facebook,
-        profile_photo: profile?.profile_photo,
-      })
-
-      const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : ''
-      const isIOS = /iPhone|iPad|iPod/i.test(userAgent)
-
-      // 1. On iOS Safari:
-      // Direct navigation to /contact.vcf with 'Content-Disposition: inline'
-      // natively prompts the Apple Contact Card sheet with the "Done" / "Save" button.
-      if (isIOS && vcardUrl) {
-        window.location.href = vcardUrl
-        setSaved(true)
-        toast.success('Opening Contact Card...')
-        setTimeout(() => setSaved(false), 4000)
-        return
-      }
-
-      // 2. On Android & modern mobile browsers:
-      // Try Web Share API with .vcf file. Android's native share sheet offers
-      // direct "Contacts - Add to Contacts" option.
-      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-        try {
-          const file = new File([vCardString], safeFilename, { type: 'text/vcard' })
-          if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            await navigator.share({
-              files: [file],
-              title: profile?.name || 'Contact',
-              text: `Save contact for ${profile?.name || 'Contact'}`,
-            })
-            setSaved(true)
-            toast.success('Contact shared! Select Contacts to save.')
-            setTimeout(() => setSaved(false), 4000)
-            return
-          }
-        } catch (err: unknown) {
-          const error = err as Error
-          // If the user dismissed or cancelled the share sheet, return silently
-          if (error.name === 'AbortError') {
-            return
-          }
-          console.warn('Native share failed, falling back to download:', error)
-        }
-      }
-
-      // 3. Fallback for Desktop, Android browsers without file share, or WebViews:
-      // Directly trigger a client-side .vcf file download
-      triggerBlobDownload(vCardString)
-      setSaved(true)
-      toast.info("Contact downloaded! Tap 'Open' or check your downloads to save.", {
-        duration: 5000,
-      })
-      setTimeout(() => setSaved(false), 4000)
-    } catch (error) {
-      console.error('Failed to save contact:', error)
-      toast.error('Could not save contact. Please use the direct download link below.')
-    } finally {
-      setTimeout(() => setDownloading(false), 1500)
-    }
+  const handleClick = () => {
+    setSaved(true)
+    toast.success('Opening Contact Card...')
+    setTimeout(() => setSaved(false), 4000)
   }
 
   return (
     <div className={`w-full mb-6 space-y-2 ${className}`}>
-      <Button
-        onClick={handleSaveContact}
-        disabled={downloading}
-        size="lg"
-        className="w-full rounded-full font-bold shadow-md hover:shadow-lg transition-all text-base py-6 bg-primary text-primary-foreground flex items-center justify-center gap-2 cursor-pointer"
+      <a
+        href={href}
+        {...(downloadAttr ? { download: downloadAttr } : {})}
+        onClick={handleClick}
+        className="w-full rounded-full font-bold shadow-md hover:shadow-lg transition-all text-base py-4 px-6 bg-primary text-primary-foreground flex items-center justify-center gap-2 cursor-pointer no-underline select-none active:scale-[0.98]"
       >
         {saved ? (
           <>
@@ -142,10 +152,10 @@ export function SaveContactButton({ shortCode, profile, className = '' }: SaveCo
         ) : (
           <>
             <UserPlusIcon className="h-5 w-5" />
-            {downloading ? 'Opening Contacts...' : 'Save to Contacts'}
+            Save to Contacts
           </>
         )}
-      </Button>
+      </a>
 
       {/* Fallback button for downloading .vcf directly if needed */}
       {vcardUrl && (
