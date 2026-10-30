@@ -13,6 +13,46 @@ import { createClient } from '@/utils/supabase/client'
 
 import { useRouter } from 'next/navigation'
 
+function compressAvatar(file: File, maxDim = 400, quality = 0.88): Promise<Blob> {
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          resolve(file)
+          return
+        }
+
+        // Center square crop to ensure perfect avatar presentation & optimal file size
+        const minSide = Math.min(img.width, img.height)
+        const sx = (img.width - minSide) / 2
+        const sy = (img.height - minSide) / 2
+
+        const targetDim = Math.min(minSide, maxDim)
+        canvas.width = targetDim
+        canvas.height = targetDim
+
+        ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, targetDim, targetDim)
+
+        canvas.toBlob(
+          (blob) => {
+            resolve(blob || file)
+          },
+          'image/jpeg',
+          quality
+        )
+      }
+      img.onerror = () => resolve(file)
+      img.src = e.target?.result as string
+    }
+    reader.onerror = () => resolve(file)
+    reader.readAsDataURL(file)
+  })
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function ProfileForm({ profile, organizationId, redirectAfterSave }: { profile: any, organizationId: string, redirectAfterSave?: string }) {
   const [isPending, setIsPending] = useState(false)
@@ -29,12 +69,15 @@ export function ProfileForm({ profile, organizationId, redirectAfterSave }: { pr
       }
       
       const file = e.target.files[0]
-      const fileExt = file.name.split('.').pop()
-      const filePath = `${organizationId}-${Math.random()}.${fileExt}`
+      const compressedBlob = await compressAvatar(file)
+      const filePath = `${organizationId}-${Date.now()}.jpg`
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(filePath, file)
+        .upload(filePath, compressedBlob, {
+          contentType: 'image/jpeg',
+          upsert: true,
+        })
 
       if (uploadError) {
         throw uploadError
@@ -47,7 +90,7 @@ export function ProfileForm({ profile, organizationId, redirectAfterSave }: { pr
       if (profile?.id) {
         await supabase.from('profiles').update({ profile_photo: data.publicUrl }).eq('id', profile.id)
       }
-      toast.success('Avatar uploaded successfully!')
+      toast.success('Avatar uploaded and optimized successfully!')
     } catch (error: unknown) {
       const err = error as Error
       toast.error(err.message || 'Error uploading image')

@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { connection } from 'next/server'
-import { generateVCard } from '@/lib/contact-actions'
+import { generateVCardWithPhoto } from '@/lib/contact-actions'
 
 export const instant = false
 
@@ -34,7 +34,7 @@ export async function GET(
     return new Response('Profile not assigned', { status: 404 })
   }
 
-  const vCardData = generateVCard(profile)
+  const vCardData = await generateVCardWithPhoto(profile)
   const safeFilename = `${(profile.name || 'contact').trim().replace(/[^a-zA-Z0-9_-]/g, '_') || 'contact'}.vcf`
 
   const userAgent = request.headers.get('user-agent') || ''

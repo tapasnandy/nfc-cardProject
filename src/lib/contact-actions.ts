@@ -4,6 +4,8 @@ export interface ProfileContactData {
   company?: string | null
   bio?: string | null
   profile_photo?: string | null
+  photo_base64?: string | null
+  photo_type?: string | null
   phone?: string | null
   email?: string | null
   whatsapp?: string | null
@@ -176,10 +178,55 @@ export function generateVCard(profile: ProfileContactData): string {
   if (profile.bio) {
     lines.push(`NOTE:${escapeVCardValue(profile.bio)}`)
   }
-  if (profile.profile_photo && profile.profile_photo.startsWith('http')) {
+
+  // Embed contact photo
+  // iOS and Android contact apps REQUIRE binary base64 encoding (PHOTO;ENCODING=b;TYPE=JPEG:<base64>)
+  // Most mobile contact importers completely ignore remote HTTP URLs (PHOTO;VALUE=URI:...) for privacy/security
+  if (profile.photo_base64) {
+    const pType = (profile.photo_type || 'JPEG').toUpperCase()
+    const cleanBase64 = profile.photo_base64.replace(/\s+/g, '')
+    lines.push(`PHOTO;ENCODING=b;TYPE=${pType}:${cleanBase64}`)
+  } else if (profile.profile_photo && profile.profile_photo.startsWith('http')) {
     lines.push(`PHOTO;VALUE=URI:${profile.profile_photo}`)
   }
 
   lines.push('END:VCARD')
   return lines.join('\r\n')
+}
+
+/**
+ * Generates a vCard 3.0 string with the profile photo downloaded and embedded as Base64 binary.
+ * This guarantees that both Apple iOS Contacts and Android / MIUI Contacts will display
+ * and save the contact photo when the user imports the .vcf file.
+ */
+export async function generateVCardWithPhoto(profile: ProfileContactData): Promise<string> {
+  let photo_base64: string | null = profile.photo_base64 || null
+  let photo_type: string = profile.photo_type || 'JPEG'
+
+  if (!photo_base64 && profile.profile_photo && profile.profile_photo.startsWith('http')) {
+    try {
+      const res = await fetch(profile.profile_photo)
+      if (res.ok) {
+        const contentType = res.headers.get('content-type') || ''
+        if (contentType.toLowerCase().includes('png')) {
+          photo_type = 'PNG'
+        } else {
+          photo_type = 'JPEG'
+        }
+        const buffer = await res.arrayBuffer()
+        // If image is reasonable size (< 3MB), convert to base64
+        if (buffer.byteLength > 0 && buffer.byteLength <= 3 * 1024 * 1024) {
+          photo_base64 = Buffer.from(buffer).toString('base64')
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch profile photo for vCard embedding:', err)
+    }
+  }
+
+  return generateVCard({
+    ...profile,
+    photo_base64,
+    photo_type,
+  })
 }
