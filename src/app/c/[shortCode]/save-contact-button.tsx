@@ -93,8 +93,8 @@ export function SaveContactButton({ shortCode, profile, className = '' }: SaveCo
     e.preventDefault()
     triggerDownload()
     setSaved(true)
-    toast.success('Contact downloaded!')
-    setTimeout(() => setSaved(false), 4000)
+    toast.success('Contact ready! Tap "Open" to save to phone.', { duration: 5000 })
+    setTimeout(() => setSaved(false), 5000)
   }
 
   return (
