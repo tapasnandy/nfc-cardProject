@@ -10,7 +10,8 @@ import {
   RadioIcon, 
   MenuIcon, 
   XIcon,
-  LogOutIcon
+  LogOutIcon,
+  UserCheckIcon
 } from 'lucide-react'
 import { signout } from '@/app/auth/actions'
 import { Button } from '@/components/ui/button'
@@ -19,6 +20,7 @@ const navItems = [
   { label: 'Overview', href: '/dashboard', icon: LayoutDashboardIcon },
   { label: 'Profiles', href: '/dashboard/profiles', icon: UsersIcon },
   { label: 'Cards', href: '/dashboard/cards', icon: CreditCardIcon },
+  { label: 'Leads', href: '/dashboard/leads', icon: UserCheckIcon },
   { label: 'NFC Writer', href: '/dashboard/nfc-writer', icon: RadioIcon },
 ]
 

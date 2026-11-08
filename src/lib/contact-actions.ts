@@ -1,4 +1,6 @@
 export interface ProfileContactData {
+  id?: string | null
+  organization_id?: string | null
   name: string
   job_title?: string | null
   company?: string | null

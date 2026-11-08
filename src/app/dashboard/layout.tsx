@@ -44,6 +44,9 @@ export default async function DashboardLayout({
             <Link href="/dashboard/cards" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors hover:underline underline-offset-4">
               Cards
             </Link>
+            <Link href="/dashboard/leads" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors hover:underline underline-offset-4">
+              Leads
+            </Link>
             <Link href="/dashboard/nfc-writer" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors hover:underline underline-offset-4">
               NFC Writer
             </Link>

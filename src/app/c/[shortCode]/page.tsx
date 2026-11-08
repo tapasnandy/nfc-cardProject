@@ -20,9 +20,10 @@ export default async function PublicProfilePage({
     .from('cards')
     .select(`
       id,
+      organization_id,
       status,
       profiles (
-        id, name, job_title, company, bio, profile_photo, phone, email, whatsapp, website, linkedin, facebook, instagram, address
+        id, organization_id, name, job_title, company, bio, profile_photo, phone, email, whatsapp, website, linkedin, facebook, instagram, address
       )
     `)
     .eq('short_code', shortCode)
@@ -78,7 +79,12 @@ export default async function PublicProfilePage({
 
   return (
     <div className="min-h-screen bg-zinc-100/70 dark:bg-zinc-950 sm:py-8 sm:px-4 flex items-start justify-center font-sans">
-      <DigitalBusinessCard profile={profile} shortCode={shortCode} />
+      <DigitalBusinessCard
+        profile={profile}
+        shortCode={shortCode}
+        cardId={card.id}
+        organizationId={card.organization_id || profile.organization_id || undefined}
+      />
     </div>
   )
 }

@@ -14,15 +14,24 @@ import {
   MapPinIcon 
 } from 'lucide-react'
 import { LinkedInIcon, InstagramIcon, FacebookIcon } from '@/components/icons'
+import { LeadCaptureModal } from '@/components/lead-capture-modal'
 import Link from 'next/link'
 
 interface DigitalBusinessCardProps {
   profile: ProfileContactData
   previewMode?: boolean
   shortCode?: string
+  cardId?: string
+  organizationId?: string
 }
 
-export function DigitalBusinessCard({ profile, previewMode = false, shortCode }: DigitalBusinessCardProps) {
+export function DigitalBusinessCard({
+  profile,
+  previewMode = false,
+  shortCode,
+  cardId,
+  organizationId,
+}: DigitalBusinessCardProps) {
   const callUrl = getCallUrl(profile.phone)
   const whatsappUrl = getWhatsAppUrl(profile.whatsapp, profile.phone)
   const websiteUrl = getSafeWebsiteUrl(profile.website)
@@ -161,10 +170,17 @@ export function DigitalBusinessCard({ profile, previewMode = false, shortCode }:
         )}
 
         {/* ======================================================== */}
-        {/* PRIMARY "SAVE TO CONTACTS" HERO BUTTON                    */}
+        {/* PRIMARY HERO BUTTONS: SAVE CONTACT & LEAD ENQUIRY        */}
         {/* ======================================================== */}
-        <div className="mb-6">
+        <div className="space-y-2.5 mb-6">
           <SaveContactButton shortCode={shortCode} profile={profile} />
+          <LeadCaptureModal
+            cardId={cardId}
+            profileId={profile.id}
+            organizationId={organizationId || profile.organization_id || undefined}
+            personName={profile.name}
+            companyName={profile.company}
+          />
         </div>
 
         {/* ======================================================== */}
