@@ -57,7 +57,7 @@ export function LeadCaptureModal({
 
     setIsSubmitting(true)
     try {
-      await submitLead({
+      const res = await submitLead({
         cardId,
         profileId,
         organizationId,
@@ -68,6 +68,11 @@ export function LeadCaptureModal({
         notes: notes.trim() || null,
         source,
       })
+
+      if (!res.success) {
+        toast.error(res.error || 'Failed to submit enquiry')
+        return
+      }
 
       setIsSuccess(true)
       toast.success(

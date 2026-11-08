@@ -13,7 +13,7 @@ export default async function LeadsPage() {
   const supabase = await createClient()
 
   // 1. Fetch leads for this organization
-  const { data: rawLeads } = await supabase
+  const { data: rawLeads, error: leadsError } = await supabase
     .from('leads')
     .select(`
       id,
@@ -32,6 +32,8 @@ export default async function LeadsPage() {
     `)
     .eq('organization_id', organization.id)
     .order('created_at', { ascending: false })
+
+  const isTableMissing = leadsError?.code === 'PGRST205'
 
   // 2. Fetch cards for this organization (for filter options)
   const { data: cards } = await supabase
@@ -81,6 +83,18 @@ export default async function LeadsPage() {
           </p>
         </div>
       </div>
+
+      {/* Database Migration Notice */}
+      {isTableMissing && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 space-y-2">
+          <div className="flex items-center gap-2 font-semibold text-sm">
+            <span>⚠️ Database Table Setup Required</span>
+          </div>
+          <p className="text-xs leading-relaxed">
+            The <code className="px-1.5 py-0.5 rounded bg-amber-500/20 font-mono text-[11px]">leads</code> table has not been created in your Supabase database yet. Please open your <strong>Supabase Dashboard &gt; SQL Editor</strong> and execute the contents of <code className="px-1.5 py-0.5 rounded bg-amber-500/20 font-mono text-[11px]">migration-leads.sql</code> to enable lead tracking.
+          </p>
+        </div>
+      )}
 
       {/* Metric Cards */}
       <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">

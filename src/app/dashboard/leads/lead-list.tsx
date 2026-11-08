@@ -95,11 +95,15 @@ export function LeadList({ initialLeads, cards, profiles }: LeadListProps) {
     setActionLeadId(leadId)
     startTransition(async () => {
       try {
-        await updateLeadStatus(leadId, newStatus)
-        setLeads((prev) =>
-          prev.map((l) => (l.id === leadId ? { ...l, status: newStatus } : l))
-        )
-        toast.success(`Status updated to ${statusBadgeVariants[newStatus]?.label || newStatus}`)
+        const res = await updateLeadStatus(leadId, newStatus)
+        if (!res.success) {
+          toast.error(res.error || 'Failed to update status')
+        } else {
+          setLeads((prev) =>
+            prev.map((l) => (l.id === leadId ? { ...l, status: newStatus } : l))
+          )
+          toast.success(`Status updated to ${statusBadgeVariants[newStatus]?.label || newStatus}`)
+        }
       } catch (err: unknown) {
         const errorMsg = err instanceof Error ? err.message : 'Failed to update status'
         toast.error(errorMsg)
@@ -118,9 +122,13 @@ export function LeadList({ initialLeads, cards, profiles }: LeadListProps) {
     setActionLeadId(leadId)
     startTransition(async () => {
       try {
-        await deleteLead(leadId)
-        setLeads((prev) => prev.filter((l) => l.id !== leadId))
-        toast.success('Lead enquiry removed')
+        const res = await deleteLead(leadId)
+        if (!res.success) {
+          toast.error(res.error || 'Failed to delete lead')
+        } else {
+          setLeads((prev) => prev.filter((l) => l.id !== leadId))
+          toast.success('Lead enquiry removed')
+        }
       } catch (err: unknown) {
         const errorMsg = err instanceof Error ? err.message : 'Failed to delete lead'
         toast.error(errorMsg)
