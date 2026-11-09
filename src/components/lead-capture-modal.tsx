@@ -27,7 +27,6 @@ import {
   FileTextIcon,
   ChevronDownIcon,
   ChevronUpIcon,
-  KeyIcon,
 } from 'lucide-react'
 import { submitLead } from '@/app/actions/lead'
 import { scanBusinessCardWithAI } from '@/app/actions/scan-card'
@@ -76,45 +75,6 @@ export function LeadCaptureModal({
   const [rawOcrText, setRawOcrText] = useState<string>('')
   const [showRawText, setShowRawText] = useState(false)
 
-  // Optional Free AI Vision Key configuration (Lazy initializers to satisfy React 19)
-  const [geminiKey, setGeminiKey] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        return localStorage.getItem('tapnet_gemini_api_key') || ''
-      } catch {
-        return ''
-      }
-    }
-    return ''
-  })
-  const [showKeyDialog, setShowKeyDialog] = useState(false)
-  const [keyInput, setKeyInput] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        return localStorage.getItem('tapnet_gemini_api_key') || ''
-      } catch {
-        return ''
-      }
-    }
-    return ''
-  })
-
-  const handleSaveApiKey = () => {
-    const trimmed = keyInput.trim()
-    if (typeof window !== 'undefined') {
-      if (trimmed) {
-        localStorage.setItem('tapnet_gemini_api_key', trimmed)
-        setGeminiKey(trimmed)
-        toast.success('Free AI Vision Key connected! 100% accurate card reading enabled.')
-      } else {
-        localStorage.removeItem('tapnet_gemini_api_key')
-        setGeminiKey('')
-        toast.info('API key removed. Using enhanced on-device OCR.')
-      }
-    }
-    setShowKeyDialog(false)
-  }
-
   const handleScanCard = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -130,26 +90,30 @@ export function LeadCaptureModal({
       setCardPhotoPreview(preprocessedUrl)
       setScanProgress(30)
 
-      // 2. Try zero-error AI Vision (via GEMINI_API_KEY from env or localStorage)
-      const aiResult = await scanBusinessCardWithAI(preprocessedUrl, geminiKey || null)
+      // 2. Try Google Gemini Vision AI (uses backend GEMINI_API_KEY)
+      try {
+        const aiResult = await scanBusinessCardWithAI(preprocessedUrl)
 
-      if (aiResult.success && aiResult.data) {
-        const d = aiResult.data
-        if (d.name) setName(d.name)
-        if (d.jobTitle) setJobTitle(d.jobTitle)
-        if (d.company) setCompany(d.company)
-        if (d.phone) setPhone(d.phone)
-        if (d.email) setEmail(d.email)
+        if (aiResult.success && aiResult.data) {
+          const d = aiResult.data
+          if (d.name) setName(d.name)
+          if (d.jobTitle) setJobTitle(d.jobTitle)
+          if (d.company) setCompany(d.company)
+          if (d.phone) setPhone(d.phone)
+          if (d.email) setEmail(d.email)
 
-        // Notes left completely empty as requested
-        setNotes('')
-        setScanComplete(true)
-        setScanProgress(100)
-        toast.success('Card details extracted with 100% accuracy via AI Vision!')
-        return
+          // Notes left completely empty as requested
+          setNotes('')
+          setScanComplete(true)
+          setScanProgress(100)
+          toast.success('Card details extracted with AI Vision!')
+          return
+        }
+      } catch (aiErr) {
+        console.warn('AI Vision encountered an issue, seamlessly switching to default OCR:', aiErr)
       }
 
-      // 3. Fallback: On-Device Probabilistic Classifier with Tesseract
+      // 3. Fallback: Default On-Device OCR with Tesseract
       setScanProgress(45)
       const Tesseract = (await import('tesseract.js')).default
 
@@ -349,12 +313,10 @@ export function LeadCaptureModal({
                       <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
                         Scan Business Card
                       </h4>
-                      {geminiKey ? (
-                        <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-1.5 py-0.5 rounded-md border border-emerald-300/50">
-                          <SparklesIcon className="w-2.5 h-2.5" />
-                          AI Active
-                        </span>
-                      ) : null}
+                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-1.5 py-0.5 rounded-md border border-emerald-300/50">
+                        <SparklesIcon className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+                        AI Active
+                      </span>
                     </div>
                     <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
                       Take photo to auto-fill Name, Title, Company &amp; Contact info
@@ -385,70 +347,13 @@ export function LeadCaptureModal({
                 </div>
               </div>
 
-              {/* Free AI Vision Key Switcher */}
-              <div className="flex items-center justify-between text-[11px] pt-0.5 border-t border-blue-200/40 dark:border-blue-900/30">
-                <span className="text-zinc-500 dark:text-zinc-400">
-                  Engine: {geminiKey ? 'Google Gemini AI Vision' : 'On-Device AI Classifier'}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowKeyDialog(!showKeyDialog)}
-                  className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-medium cursor-pointer"
-                >
-                  <KeyIcon className="w-3 h-3" />
-                  <span>{geminiKey ? 'Change AI Key' : 'Connect Free Google AI (100% Accuracy)'}</span>
-                </button>
-              </div>
-
-              {/* Interactive Key Entry Box */}
-              {showKeyDialog && (
-                <div className="p-3 rounded-xl bg-white dark:bg-zinc-900 border border-blue-200 dark:border-blue-900 space-y-2 animate-in fade-in duration-150">
-                  <div className="space-y-0.5">
-                    <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
-                      <SparklesIcon className="w-3.5 h-3.5 text-blue-600" />
-                      Free Google Gemini Vision AI (1,500 scans/day for $0)
-                    </p>
-                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                      Get a free key from{' '}
-                      <a
-                        href="https://aistudio.google.com/app/apikey"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-blue-600 underline font-medium"
-                      >
-                        aistudio.google.com
-                      </a>{' '}
-                      (takes 30 seconds, no credit card required).
-                    </p>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Input
-                      type="password"
-                      placeholder="Paste Gemini API Key (AIzaSy...)"
-                      value={keyInput}
-                      onChange={(e) => setKeyInput(e.target.value)}
-                      className="h-8 text-xs font-mono"
-                    />
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={handleSaveApiKey}
-                      className="h-8 text-xs bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-900 shrink-0 cursor-pointer"
-                    >
-                      Save Key
-                    </Button>
-                  </div>
-                </div>
-              )}
-
               {/* Live Scanning Progress Bar */}
               {isScanning && (
                 <div className="space-y-2 pt-1">
                   <div className="flex items-center justify-between text-[11px] font-medium text-blue-700 dark:text-blue-300">
                     <span className="flex items-center gap-1.5">
-                      <SparklesIcon className="w-3 h-3 animate-spin" />
-                      {geminiKey ? 'AI Vision analyzing card design & text...' : 'Classifying Name, Title & Company...'}
+                      <SparklesIcon className="w-3 h-3 animate-spin text-blue-600 dark:text-blue-400" />
+                      Analyzing card design &amp; details...
                     </span>
                     <span>{scanProgress}%</span>
                   </div>
