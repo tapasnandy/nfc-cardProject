@@ -47,6 +47,68 @@ interface LeadCaptureModalProps {
   companyName?: string | null
 }
 
+async function scanWithGeminiDirect(
+  base64Image: string,
+  apiKey: string
+): Promise<Record<string, string> | null> {
+  const cleanBase64 = base64Image.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '')
+  const candidateModels = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash']
+
+  const promptPayload = {
+    contents: [
+      {
+        parts: [
+          {
+            text: `You are an expert OCR and business card reader. Extract contact details from this business card image with 100% spelling precision.
+Return strictly a valid JSON object with these exact keys:
+{
+  "name": "Full name of the person",
+  "jobTitle": "Job title / designation",
+  "company": "Company / business / organization name",
+  "phone": "Primary mobile or phone number with international country code",
+  "email": "Clean email address",
+  "website": "Clean website URL if present",
+  "address": "Office or chamber address if present"
+}
+If any field is not found or unclear on the card, set its value to an empty string "". Do not include markdown codeblocks or any additional commentary.`,
+          },
+          {
+            inlineData: {
+              mimeType: 'image/jpeg',
+              data: cleanBase64,
+            },
+          },
+        ],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.1,
+      responseMimeType: 'application/json',
+    },
+  }
+
+  for (const model of candidateModels) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(promptPayload),
+      })
+
+      if (!response.ok) continue
+      const json = await response.json()
+      const contentText = json?.candidates?.[0]?.content?.parts?.[0]?.text
+      if (contentText) {
+        return JSON.parse(contentText)
+      }
+    } catch (e) {
+      console.warn(`Direct Gemini model ${model} failed:`, e)
+    }
+  }
+  return null
+}
+
 export function LeadCaptureModal({
   cardId,
   profileId,
@@ -90,27 +152,62 @@ export function LeadCaptureModal({
       setCardPhotoPreview(preprocessedUrl)
       setScanProgress(30)
 
-      // 2. Try Google Gemini Vision AI (uses backend GEMINI_API_KEY)
+      // 2. Try Google Gemini Vision AI (Dual Server Action + Direct Browser Pipeline)
+      const activeApiKey =
+        process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
+        (typeof window !== 'undefined' ? localStorage.getItem('tapnet_gemini_api_key') : '') ||
+        ''
+
+      let cardData: Record<string, string> | null = null
+
+      // Attempt A: Server Action
       try {
-        const aiResult = await scanBusinessCardWithAI(preprocessedUrl)
-
+        const aiResult = await scanBusinessCardWithAI(preprocessedUrl, activeApiKey)
         if (aiResult.success && aiResult.data) {
-          const d = aiResult.data
-          if (d.name) setName(d.name)
-          if (d.jobTitle) setJobTitle(d.jobTitle)
-          if (d.company) setCompany(d.company)
-          if (d.phone) setPhone(d.phone)
-          if (d.email) setEmail(d.email)
-
-          // Notes left completely empty as requested
-          setNotes('')
-          setScanComplete(true)
-          setScanProgress(100)
-          toast.success('Card details extracted with AI Vision!')
-          return
+          cardData = {
+            name: aiResult.data.name || '',
+            jobTitle: aiResult.data.jobTitle || '',
+            company: aiResult.data.company || '',
+            phone: aiResult.data.phone || '',
+            email: aiResult.data.email || '',
+          }
         }
       } catch (aiErr) {
-        console.warn('AI Vision encountered an issue, seamlessly switching to default OCR:', aiErr)
+        console.warn('Server AI Vision failed, attempting direct browser AI:', aiErr)
+      }
+
+      // Attempt B: Direct Browser AI Call
+      if (!cardData && activeApiKey) {
+        try {
+          const directResult = await scanWithGeminiDirect(preprocessedUrl, activeApiKey)
+          if (directResult) {
+            cardData = {
+              name: directResult.name || '',
+              jobTitle: directResult.jobTitle || '',
+              company: directResult.company || '',
+              phone: directResult.phone || '',
+              email: directResult.email || '',
+            }
+          }
+        } catch (directErr) {
+          console.warn('Direct browser AI failed, falling back to local OCR:', directErr)
+        }
+      }
+
+      // If AI extracted data successfully (via Server Action or Direct Browser Call)
+      if (cardData && (cardData.name || cardData.phone || cardData.email || cardData.company)) {
+        if (cardData.name) setName(cardData.name)
+        if (cardData.jobTitle) setJobTitle(cardData.jobTitle)
+        if (cardData.company) setCompany(cardData.company)
+        if (cardData.phone) setPhone(cardData.phone)
+        if (cardData.email) setEmail(cardData.email)
+
+        // Notes left completely empty as requested
+        setNotes('')
+        setScanComplete(true)
+        setScanProgress(100)
+        toast.success('Card details extracted with AI Vision!')
+        return
       }
 
       // 3. Fallback: Default On-Device OCR with Tesseract

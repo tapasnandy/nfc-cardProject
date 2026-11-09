@@ -390,7 +390,7 @@ export async function preprocessCardImage(file: File): Promise<string> {
     reader.onload = (e) => {
       const img = new Image()
       img.onload = () => {
-        const MAX_DIM = 1800
+        const MAX_DIM = 1400
         let { width, height } = img
 
         if (width > MAX_DIM || height > MAX_DIM) {
@@ -418,7 +418,7 @@ export async function preprocessCardImage(file: File): Promise<string> {
         ctx.imageSmoothingQuality = 'high'
         ctx.drawImage(img, 0, 0, width, height)
 
-        resolve(canvas.toDataURL('image/jpeg', 0.95))
+        resolve(canvas.toDataURL('image/jpeg', 0.88))
       }
       img.onerror = () => reject(new Error('Failed to load card image'))
       img.src = e.target?.result as string

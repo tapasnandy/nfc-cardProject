@@ -19,7 +19,10 @@ export async function scanBusinessCardWithAI(
   base64Image: string,
   customApiKey?: string | null
 ): Promise<{ success: boolean; data?: CardScanResult; useClientOCR?: boolean; error?: string }> {
-  const apiKey = (customApiKey || '').trim() || process.env.GEMINI_API_KEY
+  const apiKey =
+    (customApiKey || '').trim() ||
+    process.env.GEMINI_API_KEY ||
+    process.env.NEXT_PUBLIC_GEMINI_API_KEY
 
   if (!apiKey) {
     // No API key configured: seamlessly use client-side OCR
