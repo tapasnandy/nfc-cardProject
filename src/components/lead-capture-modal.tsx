@@ -153,7 +153,7 @@ export function LeadCaptureModal({
       setScanProgress(45)
       const Tesseract = (await import('tesseract.js')).default
 
-      const result = await Tesseract.recognize(preprocessedUrl, 'eng', {
+      const worker = await Tesseract.createWorker('eng', 1, {
         logger: (m) => {
           if (m.status === 'recognizing text' && typeof m.progress === 'number') {
             setScanProgress(45 + Math.round(m.progress * 50))
@@ -161,15 +161,28 @@ export function LeadCaptureModal({
         },
       })
 
-      const rawText = result.data.text || ''
+      let rawText = ''
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let pageData: any = null
+
+      try {
+        await worker.setParameters({
+          tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT,
+          preserve_interword_spaces: '1',
+        })
+        const result = await worker.recognize(preprocessedUrl)
+        rawText = result.data.text || ''
+        pageData = result.data
+      } finally {
+        await worker.terminate()
+      }
+
       setRawOcrText(rawText)
       setScanProgress(100)
 
       // Extract line font heights for name hierarchy
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pageData = result.data as any
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const allLines = pageData.lines || pageData.paragraphs?.flatMap((p: any) => p.lines) || []
+      const allLines = pageData?.lines || pageData?.paragraphs?.flatMap((p: any) => p.lines) || []
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const linesData: ParsedLineInfo[] = allLines.map((l: any) => ({
         text: l.text || '',
