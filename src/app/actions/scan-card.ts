@@ -16,9 +16,10 @@ export interface CardScanResult {
  * If no key is configured, it signals the client to use the enhanced on-device OCR engine.
  */
 export async function scanBusinessCardWithAI(
-  base64Image: string
+  base64Image: string,
+  customApiKey?: string | null
 ): Promise<{ success: boolean; data?: CardScanResult; useClientOCR?: boolean; error?: string }> {
-  const apiKey = process.env.GEMINI_API_KEY
+  const apiKey = (customApiKey || '').trim() || process.env.GEMINI_API_KEY
 
   if (!apiKey) {
     // No API key configured: seamlessly use client-side OCR

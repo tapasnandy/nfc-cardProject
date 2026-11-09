@@ -1,12 +1,12 @@
 /**
- * High-Precision Business Card Parser & OCR Healer
- * Solves:
- * 1. Accurately identifies Full Name using font size ranking & layout structure.
- * 2. Heals OCR digit typos in phone numbers (O->0, l->1, S->5, B->8) & detects all formats (+880, +1, local).
- * 3. Heals email OCR typos (@ read as © or (c), .corn -> .com, spaces around @).
- * 4. Extracts Company Name and dedicated Job Title.
- * 5. Leaves Meeting Notes completely empty.
- * 6. Uses clean, non-destructive canvas scaling to avoid pixel distortion and spelling mistakes.
+ * High-Precision Business Card Classifier & OCR Healer
+ * Uses Probabilistic Entity Scoring to distinguish:
+ * - Full Name
+ * - Job Title / Designation
+ * - Company / Organization Name
+ * - Phone Numbers
+ * - Email Addresses
+ * - Website & Address
  */
 
 export interface DetectedContactNumber {
@@ -36,23 +36,35 @@ export interface ParsedBusinessCard {
 }
 
 const COMMON_TITLES = [
-  'ceo', 'cto', 'cfo', 'coo', 'founder', 'co-founder', 'president', 'vice president', 'vp',
-  'managing director', 'executive director', 'general manager', 'director', 'manager', 'lead',
+  'ceo', 'cto', 'cfo', 'coo', 'cmo', 'cio', 'founder', 'co-founder', 'cofounder', 'president',
+  'vice president', 'vp', 'managing director', 'executive director', 'general manager', 'gm',
+  'director', 'assistant director', 'manager', 'assistant manager', 'branch manager', 'lead',
   'head of', 'sales director', 'sales manager', 'account manager', 'business development',
-  'senior consultant', 'consultant', 'specialist', 'officer', 'senior engineer', 'software engineer',
-  'engineer', 'developer', 'designer', 'creative director', 'architect', 'analyst', 'associate',
-  'advisor', 'representative', 'sales executive', 'agent', 'broker', 'realtor', 'partner',
-  'managing partner', 'attorney', 'advocate', 'lawyer', 'counsel', 'doctor', 'physician',
-  'surgeon', 'dr.', 'prof.', 'professor', 'project manager', 'marketing manager', 'product manager'
+  'senior consultant', 'consultant', 'principal consultant', 'specialist', 'officer',
+  'senior engineer', 'software engineer', 'civil engineer', 'mechanical engineer', 'engineer',
+  'developer', 'designer', 'creative director', 'art director', 'architect', 'principal architect',
+  'analyst', 'senior analyst', 'associate', 'senior associate', 'advisor', 'senior advisor',
+  'representative', 'sales executive', 'executive', 'agent', 'broker', 'realtor', 'partner',
+  'senior partner', 'managing partner', 'attorney', 'advocate', 'lawyer', 'counsel', 'legal counsel',
+  'doctor', 'physician', 'surgeon', 'dr.', 'prof.', 'professor', 'lecturer', 'project manager',
+  'marketing manager', 'product manager', 'coordinator', 'supervisor'
 ]
 
-const COMPANY_SUFFIXES = [
+const COMPANY_KEYWORDS = [
   'ltd', 'ltd.', 'limited', 'inc', 'inc.', 'llc', 'llc.', 'corp', 'corp.', 'corporation',
-  'company', 'co.', 'group', 'holdings', 'enterprises', 'solutions', 'technologies', 'technology',
-  'tech', 'agency', 'realty', 'real estate', 'properties', 'services', 'consulting', 'consultancy',
-  'associates', 'studios', 'studio', 'labs', 'lab', 'ventures', 'industries', 'logistics',
-  'international', 'pvt', 'pvt.', 'plc', 'gmbh', 'co., ltd', 'co.,ltd', 'hospital', 'clinic',
-  'bank', 'center', 'centre'
+  'company', 'co.', 'group', 'holdings', 'enterprises', 'enterprise', 'solutions', 'technologies',
+  'technology', 'tech', 'agency', 'realty', 'real estate', 'properties', 'property', 'services',
+  'consulting', 'consultancy', 'associates', 'associate', 'studios', 'studio', 'labs', 'lab',
+  'ventures', 'venture', 'industries', 'industry', 'logistics', 'international', 'intl', 'pvt',
+  'pvt.', 'private', 'plc', 'gmbh', 'co., ltd', 'co.,ltd', 'hospital', 'clinic', 'pharma',
+  'bank', 'center', 'centre', 'builders', 'construction', 'developers', 'holdings', 'firm',
+  'institute', 'school', 'academy', 'university', 'college', 'foundation', 'trust', 'global'
+]
+
+const NAME_HONORIFICS = [
+  'dr.', 'dr', 'doctor', 'prof.', 'prof', 'professor', 'engr.', 'engr', 'engineer',
+  'adv.', 'adv', 'advocate', 'mr.', 'mr', 'ms.', 'ms', 'mrs.', 'mrs', 'md.', 'md',
+  'mohammad', 'mohammed', 'muhammad'
 ]
 
 const ADDRESS_KEYWORDS = [
@@ -69,12 +81,10 @@ export function extractAndHealEmails(rawText: string): string[] {
   const emails: string[] = []
 
   let text = rawText
-    // Fix OCR symbol errors for @
     .replace(/([a-zA-Z0-9._%+-]+)\s*[@©®*]\s*([a-zA-Z0-9.-]+)\s*\.\s*([a-zA-Z]{2,})/g, '$1@$2.$3')
     .replace(/([a-zA-Z0-9._%+-]+)\s*\(c\)\s*([a-zA-Z0-9.-]+)\s*\.\s*([a-zA-Z]{2,})/gi, '$1@$2.$3')
     .replace(/([a-zA-Z0-9._%+-]+)\s*\[at\]\s*([a-zA-Z0-9.-]+)\s*\[dot\]\s*([a-zA-Z]{2,})/gi, '$1@$2.$3')
 
-  // Fix common TLD spelling mistakes made by OCR engines
   text = text.replace(/@([a-zA-Z0-9.-]+)\.(corn|coom|con|c0m|cm)\b/gi, '@$1.com')
   text = text.replace(/@([a-zA-Z0-9.-]+)\.(orq|orgg)\b/gi, '@$1.org')
   text = text.replace(/@([a-zA-Z0-9.-]+)\.(nct|ncl)\b/gi, '@$1.net')
@@ -103,13 +113,11 @@ export function extractAndHealPhones(rawLines: string[]): DetectedContactNumber[
   for (const line of rawLines) {
     const hasPhoneLabel = /(?:tel|phone|cell|mob|mobile|whatsapp|wa|fax|direct|contact|ph\b|\bt\b|\bm\b|\bo\b)/i.test(line)
 
-    // Split multi-number lines on delimiters
     const segments = line.split(/[|/\\;•]/).map((s) => s.trim()).filter(Boolean)
 
     for (const segment of segments) {
       let healed = segment
 
-      // If segment looks like a phone line, heal OCR character confusions in digits
       if (hasPhoneLabel || /\d{3,}/.test(segment) || /^\+/.test(segment)) {
         healed = healed
           .replace(/(?<=\d|\+|\s)[oO](?=\d|\s|$)/g, '0')
@@ -118,7 +126,6 @@ export function extractAndHealPhones(rawLines: string[]): DetectedContactNumber[
           .replace(/(?<=\d|\+|\s)[bB](?=\d|\s|$)/g, '8')
       }
 
-      // Match phone numbers: handles country codes, spaces, dashes, parentheses
       const phoneRegex = /(?:(?:\+|00)\d{1,4}[\s.-]?)?(?:\(?\d{2,5}\)?[\s.-]?)?\d{3,4}[\s.-]?\d{3,5}(?:\s*(?:ext|x)\s*\d{1,5})?/g
       const matches = healed.match(phoneRegex) || []
 
@@ -127,7 +134,6 @@ export function extractAndHealPhones(rawLines: string[]): DetectedContactNumber[
         const digits = cleaned.replace(/\D/g, '')
 
         if (digits.length >= 7 && digits.length <= 16 && !seenDigits.has(digits)) {
-          // Avoid matching 4-digit years like 2024
           if (!/^(19|20)\d{2}$/.test(digits)) {
             seenDigits.add(digits)
 
@@ -163,8 +169,8 @@ export function extractAndHealPhones(rawLines: string[]): DetectedContactNumber[
 }
 
 /**
- * Intelligent Business Card Parser
- * Extracts Name, Job Title, Company, Phone Numbers, Emails, and Website with high precision.
+ * Probabilistic Entity Scoring Classifier for Business Card Text.
+ * Accurately determines which line is Name, Job Title, or Company.
  */
 export function parseBusinessCardText(
   text: string,
@@ -172,7 +178,7 @@ export function parseBusinessCardText(
 ): ParsedBusinessCard {
   const rawLines = text
     .split(/\r?\n/)
-    .map((l) => l.trim().replace(/^[•|\-_:;*]+\s*/, ''))
+    .map((l) => l.trim().replace(/^[•|\-_:;*~^+=]+\s*/, '').replace(/[•|\-_:;*~^+=]+$/, ''))
     .filter((l) => l.length > 0)
 
   // 1. Emails
@@ -205,149 +211,163 @@ export function parseBusinessCardText(
     primaryPhone = phoneNumbers[0].number
   }
 
-  // 4. Job Title
-  let jobTitle = ''
-  for (const line of rawLines) {
-    const lower = line.toLowerCase()
-    const isTitle = COMMON_TITLES.some((t) => {
-      const reg = new RegExp(`\\b${t}\\b`, 'i')
-      return reg.test(lower)
-    })
-    if (isTitle && !line.includes('@') && !line.match(/\d{5,}/) && line.length <= 60) {
-      jobTitle = line
-      break
-    }
-  }
-
-  // 5. Company Name
-  let company = ''
-  for (const line of rawLines) {
-    const lower = line.toLowerCase()
-    const isCompany = COMPANY_SUFFIXES.some((suffix) => {
-      const reg = new RegExp(`\\b${suffix}\\b`, 'i')
-      return reg.test(lower)
-    })
-    if (isCompany && line !== jobTitle && !line.includes('@') && line.length <= 70) {
-      company = line
-      break
-    }
-  }
-
-  // Fallback for company from email domain or website
-  if (!company) {
-    const pEmail = foundEmails[0]
-    if (pEmail) {
-      const domain = pEmail.split('@')[1]?.split('.')[0]
-      if (domain && !['gmail', 'yahoo', 'hotmail', 'outlook', 'icloud', 'proton', 'mail', 'live', 'aol'].includes(domain)) {
-        company = domain.charAt(0).toUpperCase() + domain.slice(1)
-      }
-    }
-  }
-  if (!company && foundWebsites.length > 0) {
-    try {
-      const host = new URL(foundWebsites[0]).hostname.replace(/^www\./, '').split('.')[0]
-      if (host && host.length >= 3 && !['linktr', 'bio', 'tapnet'].includes(host)) {
-        company = host.charAt(0).toUpperCase() + host.slice(1)
-      }
-    } catch {
-      // Ignore URL parsing errors
-    }
-  }
-
-  // 6. Address
+  // 4. Address detection
   const addressLines: string[] = []
   for (const line of rawLines) {
     const lower = line.toLowerCase()
     const hasAddressKw = ADDRESS_KEYWORDS.some((kw) => lower.includes(kw))
-    if (
-      hasAddressKw &&
-      line !== jobTitle &&
-      line !== company &&
-      !line.includes('@') &&
-      !phoneNumbers.some((p) => p.number === line)
-    ) {
+    if (hasAddressKw && !line.includes('@') && !phoneNumbers.some((p) => p.number === line)) {
       addressLines.push(line)
     }
   }
   const address = addressLines.slice(0, 2).join(', ')
 
-  // 7. Full Name Extraction (Using Font Size Ranking & Structural Heuristics)
-  let name = ''
+  // -------------------------------------------------------------
+  // 5. PROBABILISTIC ENTITY CLASSIFICATION (NAME vs TITLE vs COMPANY)
+  // -------------------------------------------------------------
+  // Filter out pure contact lines (emails, urls, pure phone numbers, address lines)
+  const candidateLines = rawLines.filter((line) => {
+    if (line.includes('@') || line.includes('www.') || line.startsWith('http')) return false
+    if (phoneNumbers.some((p) => line.includes(p.number) || line.replace(/\D/g, '').length >= 7)) return false
+    if (addressLines.includes(line)) return false
+    return line.length >= 2 && line.length <= 80
+  })
 
-  // If OCR provided line bounding box heights, sort candidate lines by font size!
-  if (linesData && linesData.length > 0) {
-    const candidates = linesData
-      .filter((l) => {
-        const t = l.text.trim()
-        if (t.includes('@') || t.includes('www.') || t.includes('http')) return false
-        if (phoneNumbers.some((p) => t.includes(p.number) || t.replace(/\D/g, '').length >= 6)) return false
-        if (t === jobTitle || t === company || addressLines.includes(t)) return false
-        const lettersOnly = t.replace(/[^a-zA-Z]/g, '')
-        const words = t.split(/\s+/).filter(Boolean)
-        return words.length >= 2 && words.length <= 4 && lettersOnly.length >= 4
-      })
-      .sort((a, b) => (b.height || 0) - (a.height || 0))
-
-    if (candidates.length > 0) {
-      name = candidates[0].text.trim().replace(/[.,:;*|]+$/, '')
+  // Extract hints from corporate email or website domain to recognize company name
+  const corporateKeywords: string[] = []
+  const pEmail = foundEmails[0]
+  if (pEmail) {
+    const domainPart = pEmail.split('@')[1]?.split('.')[0]
+    if (domainPart && !['gmail', 'yahoo', 'hotmail', 'outlook', 'icloud', 'proton', 'mail', 'live'].includes(domainPart)) {
+      corporateKeywords.push(domainPart.toLowerCase())
+    }
+  }
+  if (foundWebsites.length > 0) {
+    try {
+      const hostPart = new URL(foundWebsites[0]).hostname.replace(/^www\./, '').split('.')[0]
+      if (hostPart && hostPart.length >= 3 && !['linktr', 'bio', 'tapnet'].includes(hostPart)) {
+        corporateKeywords.push(hostPart.toLowerCase())
+      }
+    } catch {
+      // Ignore URL errors
     }
   }
 
-  // Fallback name search if bounding box ranking didn't find one
-  if (!name) {
-    const candidateLines = rawLines.filter((line) => {
-      if (line.includes('@') || line.includes('www.') || line.includes('http') || line.includes('.com')) return false
-      if (phoneNumbers.some((p) => line.includes(p.number) || line.replace(/\D/g, '').length >= 6)) return false
-      if (line === jobTitle || line === company || addressLines.includes(line)) return false
+  // Calculate scores for each candidate line
+  interface ClassifiedCandidate {
+    line: string
+    height: number
+    titleScore: number
+    companyScore: number
+    nameScore: number
+  }
 
-      const words = line.split(/\s+/).filter(Boolean)
-      if (words.length >= 2 && words.length <= 4) {
-        const letterRatio = line.replace(/[^a-zA-Z]/g, '').length / line.length
-        return letterRatio > 0.75
-      }
-      return false
+  const scoredCandidates: ClassifiedCandidate[] = candidateLines.map((line, idx) => {
+    const lower = line.toLowerCase()
+    const words = line.split(/\s+/).filter(Boolean)
+    const letterRatio = line.replace(/[^a-zA-Z]/g, '').length / line.length
+
+    // Find bounding box height if provided by OCR
+    const matchingLineData = linesData?.find((l) => l.text.includes(line) || line.includes(l.text))
+    const height = matchingLineData?.height || 16
+
+    let titleScore = 0
+    let companyScore = 0
+    let nameScore = 0
+
+    // --- TITLE SCORE ---
+    const hasCommonTitle = COMMON_TITLES.some((t) => {
+      const reg = new RegExp(`\\b${t}\\b`, 'i')
+      return reg.test(lower)
     })
+    if (hasCommonTitle) titleScore += 90
+    if (lower.includes('senior') || lower.includes('lead') || lower.includes('head of')) titleScore += 30
+    if (words.length >= 1 && words.length <= 5) titleScore += 20
+    // Penalize company suffixes in title
+    if (COMPANY_KEYWORDS.some((k) => lower.includes(k))) titleScore -= 60
 
-    if (candidateLines.length > 0) {
-      name = candidateLines[0].replace(/[.,:;*|]+$/, '')
-    } else {
-      // Last resort: Top non-contact line with letters
-      for (const line of rawLines) {
-        if (
-          !line.includes('@') &&
-          !line.match(/\d{4,}/) &&
-          line !== jobTitle &&
-          line !== company &&
-          line.length >= 3 &&
-          line.length <= 35
-        ) {
-          name = line.replace(/[.,:;*|]+$/, '')
-          break
-        }
-      }
+    // --- COMPANY SCORE ---
+    const hasCompanyKeyword = COMPANY_KEYWORDS.some((k) => {
+      const reg = new RegExp(`\\b${k}\\b`, 'i')
+      return reg.test(lower)
+    })
+    if (hasCompanyKeyword) companyScore += 80
+    // Domain match bonus
+    if (corporateKeywords.some((corp) => lower.includes(corp))) companyScore += 100
+    // All CAPS bonus (e.g. "PRIME REALTY")
+    if (line === line.toUpperCase() && line.length >= 4) companyScore += 25
+    // Top line position bonus
+    if (idx === 0) companyScore += 30
+    // Penalize title words in company
+    if (hasCommonTitle) companyScore -= 50
+
+    // --- NAME SCORE ---
+    // Names typically have 2-4 words, capitalized (e.g. "Alex Morgan")
+    if (words.length >= 2 && words.length <= 4) nameScore += 40
+    const isCapitalizedWords = words.every((w) => /^[A-Z][a-z]+$/.test(w) || /^[A-Z.]+$/.test(w))
+    if (isCapitalizedWords) nameScore += 35
+    // Honorific match bonus ("Dr.", "Mr.", "Engr.")
+    if (NAME_HONORIFICS.some((h) => lower.startsWith(h) || lower.includes(h))) nameScore += 70
+    // Font height bonus (names are printed largest on card)
+    if (height > 20) nameScore += 50
+    if (letterRatio > 0.8) nameScore += 20
+    // Penalize title and company keywords in names
+    if (hasCommonTitle) nameScore -= 70
+    if (hasCompanyKeyword) nameScore -= 70
+
+    return {
+      line,
+      height,
+      titleScore,
+      companyScore,
+      nameScore,
     }
+  })
+
+  // Solve Entity Assignment
+  let bestTitle = ''
+  let bestCompany = ''
+  let bestName = ''
+
+  // 1. Assign Job Title (highest titleScore >= 50)
+  const titleCandidate = [...scoredCandidates]
+    .filter((c) => c.titleScore >= 50)
+    .sort((a, b) => b.titleScore - a.titleScore)[0]
+  if (titleCandidate) {
+    bestTitle = titleCandidate.line
   }
 
-  // If job title was not found, check the line immediately below the Name
-  if (!jobTitle && name) {
-    const nameIndex = rawLines.findIndex((l) => l.includes(name))
-    if (nameIndex >= 0 && nameIndex + 1 < rawLines.length) {
-      const nextLine = rawLines[nameIndex + 1]
-      if (
-        !nextLine.includes('@') &&
-        !phoneNumbers.some((p) => nextLine.includes(p.number)) &&
-        nextLine !== company &&
-        nextLine.length <= 50
-      ) {
-        jobTitle = nextLine
-      }
-    }
+  // 2. Assign Company (highest companyScore >= 40, not matching title)
+  const companyCandidate = [...scoredCandidates]
+    .filter((c) => c.line !== bestTitle && c.companyScore >= 40)
+    .sort((a, b) => b.companyScore - a.companyScore)[0]
+  if (companyCandidate) {
+    bestCompany = companyCandidate.line
+  }
+
+  // 3. Assign Name (highest nameScore, not matching title or company)
+  const nameCandidate = [...scoredCandidates]
+    .filter((c) => c.line !== bestTitle && c.line !== bestCompany)
+    .sort((a, b) => b.nameScore - a.nameScore)[0]
+  if (nameCandidate) {
+    bestName = nameCandidate.line
+  }
+
+  // Fallbacks if any remained unassigned
+  if (!bestName && scoredCandidates.length > 0) {
+    const fallback = scoredCandidates.find((c) => c.line !== bestTitle && c.line !== bestCompany)
+    if (fallback) bestName = fallback.line
+  }
+
+  if (!bestCompany && corporateKeywords.length > 0) {
+    const raw = corporateKeywords[0]
+    bestCompany = raw.charAt(0).toUpperCase() + raw.slice(1)
   }
 
   return {
-    name,
-    jobTitle,
-    company,
+    name: bestName,
+    jobTitle: bestTitle,
+    company: bestCompany,
     phone: primaryPhone,
     phoneNumbers,
     email: foundEmails[0] || '',
