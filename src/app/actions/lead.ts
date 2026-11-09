@@ -42,6 +42,13 @@ export async function submitLead(params: SubmitLeadParams): Promise<ActionResult
       return { success: false, error: 'Please enter your name.' }
     }
 
+    if (!phone && !email) {
+      return {
+        success: false,
+        error: 'Please enter either a phone number or email so we can reach you.',
+      }
+    }
+
     let orgId = params.organizationId
 
     // If organizationId was not provided, resolve it from cardId or profileId

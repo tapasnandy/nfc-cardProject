@@ -23,6 +23,7 @@ interface DigitalBusinessCardProps {
   shortCode?: string
   cardId?: string
   organizationId?: string
+  hasAiVision?: boolean
 }
 
 export function DigitalBusinessCard({
@@ -31,6 +32,7 @@ export function DigitalBusinessCard({
   shortCode,
   cardId,
   organizationId,
+  hasAiVision,
 }: DigitalBusinessCardProps) {
   const callUrl = getCallUrl(profile.phone)
   const whatsappUrl = getWhatsAppUrl(profile.whatsapp, profile.phone)
@@ -180,6 +182,7 @@ export function DigitalBusinessCard({
             organizationId={organizationId || profile.organization_id || undefined}
             personName={profile.name}
             companyName={profile.company}
+            hasAiVision={hasAiVision}
           />
         </div>
 

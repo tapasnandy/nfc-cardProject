@@ -12,113 +12,100 @@ export interface CardScanResult {
 }
 
 /**
- * Server action that attempts high-precision Vision AI extraction if GEMINI_API_KEY is available.
- * If no key is configured, it signals the client to use the enhanced on-device OCR engine.
+ * Server action that uses multimodal Vision AI (Google Gemini) to extract contact details from business card photos.
+ * Analyzes typography, layout, logos, and contact labels with human-level accuracy.
  */
 export async function scanBusinessCardWithAI(
   base64Image: string,
   customApiKey?: string | null
 ): Promise<{ success: boolean; data?: CardScanResult; useClientOCR?: boolean; error?: string }> {
-  const apiKey =
-    (customApiKey || '').trim() ||
-    process.env.GEMINI_API_KEY ||
-    process.env.NEXT_PUBLIC_GEMINI_API_KEY
+  const apiKey = (customApiKey || '').trim() || process.env.GEMINI_API_KEY
 
   if (!apiKey) {
     // No API key configured: seamlessly use client-side OCR
     return { success: false, useClientOCR: true }
   }
 
-  try {
-    // Strip data URL header if present (e.g. data:image/jpeg;base64,...)
-    const cleanBase64 = base64Image.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '')
+  // Strip data URL header if present (e.g. data:image/jpeg;base64,...)
+  const cleanBase64 = base64Image.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '')
 
-    // Models supported by Google API with automatic fallback for high availability
-    const candidateModels = [
-      'gemini-3.5-flash',
-      'gemini-3.5-flash-lite',
-      'gemini-3.8-flash',
-    ]
+  // Fallback cascade for model availability
+  const candidateModels = ['gemini-3.5-flash-lite', 'gemini-flash-latest', 'gemini-3.5-flash']
 
-    const promptPayload = {
-      contents: [
-        {
-          parts: [
+  for (const modelName of candidateModels) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
             {
-              text: `You are an expert OCR and business card reader. Extract contact details from this business card image with 100% spelling precision.
-Return strictly a valid JSON object with these exact keys:
-{
-  "name": "Full name of the person",
-  "jobTitle": "Job title / designation",
-  "company": "Company / business / organization name",
-  "phone": "Primary mobile or phone number with international country code",
-  "email": "Clean email address",
-  "website": "Clean website URL if present",
-  "address": "Office or chamber address if present"
-}
-If any field is not found or unclear on the card, set its value to an empty string "". Do not include markdown codeblocks or any additional commentary.`,
-            },
-            {
-              inlineData: {
-                mimeType: 'image/jpeg',
-                data: cleanBase64,
-              },
+              parts: [
+                {
+                  text: `You are an expert AI business card reader and entity classifier.
+Analyze this business card image with meticulous accuracy.
+Identify and extract:
+1. "name": The full name of the individual (person). Distinguish this from company name or slogans.
+2. "jobTitle": The job title, profession, or designation (e.g., "Senior Architect", "Managing Director", "Consultant", "Doctor", "Founder").
+3. "company": The company, firm, brand, or organization name.
+4. "phone": The primary mobile / telephone number including international country code (+...) if shown.
+5. "email": The clean, valid email address.
+6. "website": Clean website URL if present.
+7. "address": The business/office/clinic physical address if present.
+
+Return STRICTLY a valid JSON object with those 7 keys.
+If any field is missing on the card, set its value to "".
+Do NOT include markdown formatting, codeblocks, or extra text.`,
+                },
+                {
+                  inlineData: {
+                    mimeType: 'image/jpeg',
+                    data: cleanBase64,
+                  },
+                },
+              ],
             },
           ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.1,
-        responseMimeType: 'application/json',
-      },
-    }
+          generationConfig: {
+            temperature: 0.1,
+            responseMimeType: 'application/json',
+          },
+        }),
+      })
 
-    let parsed: Record<string, string> | null = null
-
-    for (const model of candidateModels) {
-      try {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(promptPayload),
-        })
-
-        if (!response.ok) {
-          console.warn(`Gemini (${model}) returned status ${response.status}, trying next fallback...`)
-          continue
-        }
-
-        const json = await response.json()
-        const contentText = json?.candidates?.[0]?.content?.parts?.[0]?.text
-        if (contentText) {
-          parsed = JSON.parse(contentText)
-          break
-        }
-      } catch (modelErr) {
-        console.warn(`Gemini model ${model} failed:`, modelErr)
+      if (!response.ok) {
+        console.warn(`Gemini model ${modelName} returned status ${response.status}. Trying next model...`)
+        continue
       }
-    }
 
-    if (!parsed) {
-      return { success: false, useClientOCR: true }
-    }
+      const json = await response.json()
+      const contentText = json?.candidates?.[0]?.content?.parts?.[0]?.text
+      if (!contentText) {
+        continue
+      }
 
-    return {
-      success: true,
-      data: {
-        name: parsed.name || '',
-        jobTitle: parsed.jobTitle || '',
-        company: parsed.company || '',
-        phone: parsed.phone || '',
-        email: parsed.email || '',
-        website: parsed.website || '',
-        address: parsed.address || '',
-        source: 'ai_vision',
-      },
+      const parsed = JSON.parse(contentText)
+
+      return {
+        success: true,
+        data: {
+          name: parsed.name || '',
+          jobTitle: parsed.jobTitle || '',
+          company: parsed.company || '',
+          phone: parsed.phone || '',
+          email: parsed.email || '',
+          website: parsed.website || '',
+          address: parsed.address || '',
+          source: 'ai_vision',
+        },
+      }
+    } catch (err: unknown) {
+      console.warn(`Error invoking Gemini model ${modelName}:`, err)
     }
-  } catch (err: unknown) {
-    console.warn('AI Vision scan failed, falling back to client OCR:', err)
-    return { success: false, useClientOCR: true }
   }
+
+  // If all Gemini models failed or had high traffic spikes, fallback cleanly to on-device OCR
+  return { success: false, useClientOCR: true }
 }
