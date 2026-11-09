@@ -32,41 +32,7 @@ export interface ParsedBusinessCard {
   website: string
   websites: string[]
   address: string
-  notes?: string
   rawText: string
-}
-
-const TYPO_MAP: Record<string, string> = {
-  manaqer: 'manager',
-  managcr: 'manager',
-  manger: 'manager',
-  dircctor: 'director',
-  direclor: 'director',
-  directer: 'director',
-  engincer: 'engineer',
-  enginccr: 'engineer',
-  architcct: 'architect',
-  exccutive: 'executive',
-  foundcr: 'founder',
-  prcsident: 'president',
-  consullant: 'consultant',
-  consultanl: 'consultant',
-  associale: 'associate',
-  associales: 'associates',
-  technoloqies: 'technologies',
-  solulions: 'solutions',
-  cntcrprises: 'enterprises',
-  propcrties: 'properties',
-  intcrnational: 'international',
-}
-
-export function healWordTypos(text: string): string {
-  let res = text
-  for (const [typo, fixed] of Object.entries(TYPO_MAP)) {
-    const reg = new RegExp(`\\b${typo}\\b`, 'gi')
-    res = res.replace(reg, fixed)
-  }
-  return res
 }
 
 const COMMON_TITLES = [
@@ -104,7 +70,7 @@ const NAME_HONORIFICS = [
 const ADDRESS_KEYWORDS = [
   'road', 'rd.', 'rd', 'street', 'st.', 'st', 'avenue', 'ave.', 'ave', 'lane', 'ln',
   'boulevard', 'blvd', 'suite', 'ste', 'floor', 'fl.', 'fl', 'block', 'sector', 'house',
-  'plot', 'building', 'tower', 'plaza', 'square', 'city', 'po box',
+  'plot', 'building', 'tower', 'plaza', 'center', 'centre', 'square', 'city', 'po box',
   'p.o. box', 'zip', 'dhaka', 'new york', 'london', 'dubai', 'singapore'
 ]
 
@@ -210,19 +176,18 @@ export function parseBusinessCardText(
   text: string,
   linesData?: ParsedLineInfo[]
 ): ParsedBusinessCard {
-  const healedText = healWordTypos(text)
-  const rawLines = healedText
+  const rawLines = text
     .split(/\r?\n/)
     .map((l) => l.trim().replace(/^[•|\-_:;*~^+=]+\s*/, '').replace(/[•|\-_:;*~^+=]+$/, ''))
     .filter((l) => l.length > 0)
 
   // 1. Emails
-  const foundEmails = extractAndHealEmails(healedText)
+  const foundEmails = extractAndHealEmails(text)
 
   // 2. Websites
   const urlRegex = /(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?(?:\/[^\s,;]*)?)/gi
   const foundWebsites: string[] = []
-  const urlMatches = healedText.match(urlRegex) || []
+  const urlMatches = text.match(urlRegex) || []
   for (const m of urlMatches) {
     const cleaned = m.trim().replace(/[.,;:]+$/, '')
     const isEmailDomain = foundEmails.some((em) => em.includes(cleaned) || cleaned.includes(em))
@@ -250,17 +215,8 @@ export function parseBusinessCardText(
   const addressLines: string[] = []
   for (const line of rawLines) {
     const lower = line.toLowerCase()
-    const hasAddressKw = ADDRESS_KEYWORDS.some((kw) => {
-      const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      const reg = new RegExp(`\\b${escaped}\\b`, 'i')
-      return reg.test(lower)
-    })
-    const hasStrongCompanyKw = COMPANY_KEYWORDS.some((kw) => {
-      const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      const reg = new RegExp(`\\b${escaped}\\b`, 'i')
-      return reg.test(lower)
-    })
-    if (hasAddressKw && !hasStrongCompanyKw && !line.includes('@') && !phoneNumbers.some((p) => p.number === line)) {
+    const hasAddressKw = ADDRESS_KEYWORDS.some((kw) => lower.includes(kw))
+    if (hasAddressKw && !line.includes('@') && !phoneNumbers.some((p) => p.number === line)) {
       addressLines.push(line)
     }
   }
@@ -419,17 +375,14 @@ export function parseBusinessCardText(
     website: foundWebsites[0] || '',
     websites: foundWebsites,
     address,
-    notes: '', // Notes strictly empty
     rawText: text.trim(),
   }
 }
 
 /**
- * Enhanced Canvas Image Preprocessor
- * 1. Scales mobile photos to optimal OCR size (max 1800px) with clean bilinear resampling.
- * 2. Adds clean 35px white margin padding around the card to prevent edge character clipping.
- * 3. Inspects luminance: if dark card (white text on dark background), inverts RGB pixels
- *    so Tesseract recognizes characters with standard high accuracy.
+ * Clean Canvas Image Resizer
+ * Scales mobile photos to optimal OCR size (max 1800px) with clean bilinear resampling.
+ * Preserves true RGB font anti-aliasing and avoids destructive pixel distortion.
  */
 export async function preprocessCardImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -450,10 +403,9 @@ export async function preprocessCardImage(file: File): Promise<string> {
           }
         }
 
-        const PADDING = 35 // Clean white margin around card prevents edge text clipping
         const canvas = document.createElement('canvas')
-        canvas.width = width + PADDING * 2
-        canvas.height = height + PADDING * 2
+        canvas.width = width
+        canvas.height = height
         const ctx = canvas.getContext('2d')
 
         if (!ctx) {
@@ -461,48 +413,10 @@ export async function preprocessCardImage(file: File): Promise<string> {
           return
         }
 
-        // Fill background with white margin
-        ctx.fillStyle = '#ffffff'
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-        // Draw image cleanly preserving natural font anti-aliasing
+        // Draw cleanly preserving natural font anti-aliasing
         ctx.imageSmoothingEnabled = true
         ctx.imageSmoothingQuality = 'high'
-        ctx.drawImage(img, PADDING, PADDING, width, height)
-
-        // Check background luminance to detect dark/black cards
-        // Tesseract accuracy drops significantly on white-text-on-dark cards.
-        // If card is inverted (dark), invert RGB to feed Tesseract black-text-on-white.
-        try {
-          const imgData = ctx.getImageData(PADDING, PADDING, width, height)
-          const data = imgData.data
-          let totalLuminance = 0
-          const step = 16 // Sample every 16th pixel for speed
-          let sampleCount = 0
-
-          for (let i = 0; i < data.length; i += 4 * step) {
-            const r = data[i]
-            const g = data[i + 1]
-            const b = data[i + 2]
-            const lum = 0.299 * r + 0.587 * g + 0.114 * b
-            totalLuminance += lum
-            sampleCount++
-          }
-
-          const avgLuminance = sampleCount > 0 ? totalLuminance / sampleCount : 255
-
-          // If dark card (average brightness < 115 out of 255), invert RGB
-          if (avgLuminance < 115) {
-            for (let i = 0; i < data.length; i += 4) {
-              data[i] = 255 - data[i]         // R
-              data[i + 1] = 255 - data[i + 1] // G
-              data[i + 2] = 255 - data[i + 2] // B
-            }
-            ctx.putImageData(imgData, PADDING, PADDING)
-          }
-        } catch {
-          // Fall back gracefully if canvas security restriction occurs
-        }
+        ctx.drawImage(img, 0, 0, width, height)
 
         resolve(canvas.toDataURL('image/jpeg', 0.95))
       }

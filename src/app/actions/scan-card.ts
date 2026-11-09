@@ -30,17 +30,19 @@ export async function scanBusinessCardWithAI(
     // Strip data URL header if present (e.g. data:image/jpeg;base64,...)
     const cleanBase64 = base64Image.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '')
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`
+    // Models supported by Google API with automatic fallback for high availability
+    const candidateModels = [
+      'gemini-3.5-flash',
+      'gemini-3.5-flash-lite',
+      'gemini-3.8-flash',
+    ]
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: `You are an expert OCR and business card reader. Extract contact details from this business card image with 100% spelling precision.
+    const promptPayload = {
+      contents: [
+        {
+          parts: [
+            {
+              text: `You are an expert OCR and business card reader. Extract contact details from this business card image with 100% spelling precision.
 Return strictly a valid JSON object with these exact keys:
 {
   "name": "Full name of the person",
@@ -52,35 +54,52 @@ Return strictly a valid JSON object with these exact keys:
   "address": "Office or chamber address if present"
 }
 If any field is not found or unclear on the card, set its value to an empty string "". Do not include markdown codeblocks or any additional commentary.`,
+            },
+            {
+              inlineData: {
+                mimeType: 'image/jpeg',
+                data: cleanBase64,
               },
-              {
-                inlineData: {
-                  mimeType: 'image/jpeg',
-                  data: cleanBase64,
-                },
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.1,
-          responseMimeType: 'application/json',
+            },
+          ],
         },
-      }),
-    })
-
-    if (!response.ok) {
-      console.warn('Gemini API call failed, falling back to local OCR:', response.statusText)
-      return { success: false, useClientOCR: true }
+      ],
+      generationConfig: {
+        temperature: 0.1,
+        responseMimeType: 'application/json',
+      },
     }
 
-    const json = await response.json()
-    const contentText = json?.candidates?.[0]?.content?.parts?.[0]?.text
-    if (!contentText) {
-      return { success: false, useClientOCR: true }
+    let parsed: Record<string, string> | null = null
+
+    for (const model of candidateModels) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(promptPayload),
+        })
+
+        if (!response.ok) {
+          console.warn(`Gemini (${model}) returned status ${response.status}, trying next fallback...`)
+          continue
+        }
+
+        const json = await response.json()
+        const contentText = json?.candidates?.[0]?.content?.parts?.[0]?.text
+        if (contentText) {
+          parsed = JSON.parse(contentText)
+          break
+        }
+      } catch (modelErr) {
+        console.warn(`Gemini model ${model} failed:`, modelErr)
+      }
     }
 
-    const parsed = JSON.parse(contentText)
+    if (!parsed) {
+      return { success: false, useClientOCR: true }
+    }
 
     return {
       success: true,
