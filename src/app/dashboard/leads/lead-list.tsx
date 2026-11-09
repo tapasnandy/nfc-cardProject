@@ -324,12 +324,6 @@ export function LeadList({ initialLeads, cards, profiles }: LeadListProps) {
                       <Badge variant="outline" className={`text-xs ${badge.className}`}>
                         {badge.label}
                       </Badge>
-                      <Badge
-                        variant="secondary"
-                        className="text-[11px] font-normal text-muted-foreground"
-                      >
-                        {lead.source === 'salesperson' ? 'Sales Rep Entry' : 'Client Direct'}
-                      </Badge>
                     </div>
 
                     {lead.company && (

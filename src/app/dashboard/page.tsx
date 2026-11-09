@@ -371,7 +371,7 @@ export default async function DashboardPage() {
                         </Badge>
                       </div>
                       <p className="text-[11px] text-muted-foreground">
-                        {lead.company || lead.source === 'salesperson' ? 'Sales Rep Meeting' : 'Client direct enquiry'}
+                        {lead.company || 'Client / Visitor Enquiry'}
                       </p>
                     </div>
                     <span className="text-[11px] text-muted-foreground shrink-0">
