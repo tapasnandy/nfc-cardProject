@@ -8,6 +8,7 @@ export interface SubmitLeadParams {
   profileId?: string | null
   organizationId?: string | null
   name: string
+  jobTitle?: string | null
   phone?: string | null
   email?: string | null
   company?: string | null
@@ -31,6 +32,7 @@ export async function submitLead(params: SubmitLeadParams): Promise<ActionResult
     const supabase = await createClient()
 
     const name = (params.name || '').trim()
+    const jobTitle = (params.jobTitle || '').trim()
     const phone = (params.phone || '').trim()
     const email = (params.email || '').trim()
     const company = (params.company || '').trim()
@@ -80,6 +82,7 @@ export async function submitLead(params: SubmitLeadParams): Promise<ActionResult
       card_id: params.cardId || null,
       profile_id: params.profileId || null,
       name,
+      job_title: jobTitle || null,
       phone: phone || null,
       email: email || null,
       company: company || null,

@@ -29,10 +29,12 @@ import {
   ChevronUpIcon,
 } from 'lucide-react'
 import { submitLead } from '@/app/actions/lead'
+import { scanBusinessCardWithAI } from '@/app/actions/scan-card'
 import {
   parseBusinessCardText,
   preprocessCardImage,
   DetectedContactNumber,
+  ParsedLineInfo,
 } from '@/lib/business-card-parser'
 import { toast } from 'sonner'
 import Image from 'next/image'
@@ -54,9 +56,10 @@ export function LeadCaptureModal({
 }: LeadCaptureModalProps) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
+  const [jobTitle, setJobTitle] = useState('')
+  const [company, setCompany] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
-  const [company, setCompany] = useState('')
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
@@ -77,23 +80,43 @@ export function LeadCaptureModal({
     if (!file) return
 
     setIsScanning(true)
-    setScanProgress(5)
+    setScanProgress(10)
     setScanComplete(false)
     setShowRawText(false)
 
     try {
-      // 1. Generate preview & optimize image for OCR (contrast normalization, resizing)
+      // 1. Clean image scaling without destructive pixel manipulation
       const preprocessedUrl = await preprocessCardImage(file)
       setCardPhotoPreview(preprocessedUrl)
-      setScanProgress(20)
+      setScanProgress(25)
 
-      // 2. Dynamically load Tesseract.js
+      // 2. Try zero-error AI Vision first (if GEMINI_API_KEY is configured)
+      const aiResult = await scanBusinessCardWithAI(preprocessedUrl)
+
+      if (aiResult.success && aiResult.data) {
+        const d = aiResult.data
+        if (d.name) setName(d.name)
+        if (d.jobTitle) setJobTitle(d.jobTitle)
+        if (d.company) setCompany(d.company)
+        if (d.phone) setPhone(d.phone)
+        if (d.email) setEmail(d.email)
+
+        // Notes left completely empty as requested
+        setNotes('')
+        setScanComplete(true)
+        setScanProgress(100)
+        toast.success('Card details extracted successfully with AI Vision!')
+        return
+      }
+
+      // 3. Fallback: High-precision on-device OCR engine
+      setScanProgress(40)
       const Tesseract = (await import('tesseract.js')).default
 
       const result = await Tesseract.recognize(preprocessedUrl, 'eng', {
         logger: (m) => {
           if (m.status === 'recognizing text' && typeof m.progress === 'number') {
-            setScanProgress(20 + Math.round(m.progress * 75))
+            setScanProgress(40 + Math.round(m.progress * 55))
           }
         },
       })
@@ -102,56 +125,34 @@ export function LeadCaptureModal({
       setRawOcrText(rawText)
       setScanProgress(100)
 
-      // 3. Intelligent multi-layout parser
-      const parsed = parseBusinessCardText(rawText)
+      // Extract line font heights for name hierarchy
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pageData = result.data as any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const allLines = pageData.lines || pageData.paragraphs?.flatMap((p: any) => p.lines) || []
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const linesData: ParsedLineInfo[] = allLines.map((l: any) => ({
+        text: l.text || '',
+        height: l.bbox ? l.bbox.y1 - l.bbox.y0 : undefined,
+      }))
+
+      // Parse with OCR typo healing (phones, emails, company, title, name)
+      const parsed = parseBusinessCardText(rawText, linesData)
 
       if (parsed.name) setName(parsed.name)
+      if (parsed.jobTitle) setJobTitle(parsed.jobTitle)
+      if (parsed.company) setCompany(parsed.company)
       if (parsed.phone) setPhone(parsed.phone)
       if (parsed.email) setEmail(parsed.email)
-      if (parsed.company) setCompany(parsed.company)
 
       setDetectedPhones(parsed.phoneNumbers)
       setDetectedEmails(parsed.emails)
 
-      // 4. Assemble comprehensive notes preserving all secondary contacts
-      const notesParts: string[] = []
-      if (parsed.jobTitle) {
-        notesParts.push(`Job Title: ${parsed.jobTitle}`)
-      }
-
-      // Log secondary phone numbers if card had multiple
-      const otherPhones = parsed.phoneNumbers.filter((p) => p.number !== parsed.phone)
-      if (otherPhones.length > 0) {
-        notesParts.push(
-          `Other Numbers: ${otherPhones.map((p) => `${p.formattedLabel}: ${p.number}`).join(' | ')}`
-        )
-      }
-
-      // Log secondary emails if card had multiple
-      const otherEmails = parsed.emails.filter((em) => em !== parsed.email)
-      if (otherEmails.length > 0) {
-        notesParts.push(`Other Emails: ${otherEmails.join(', ')}`)
-      }
-
-      if (parsed.website) {
-        notesParts.push(`Website: ${parsed.website}`)
-      }
-
-      if (parsed.address) {
-        notesParts.push(`Address: ${parsed.address}`)
-      }
-
-      if (notesParts.length > 0) {
-        const compiled = notesParts.join('\n')
-        setNotes((prev) => (prev ? `${compiled}\n\n${prev}` : compiled))
-      }
+      // MEETING NOTES LEFT COMPLETELY EMPTY AS REQUESTED
+      setNotes('')
 
       setScanComplete(true)
-      const numberCount = parsed.phoneNumbers.length
-      const emailCount = parsed.emails.length
-      toast.success(
-        `Card scanned! Extracted ${numberCount} number${numberCount !== 1 ? 's' : ''} and ${emailCount} email${emailCount !== 1 ? 's' : ''}.`
-      )
+      toast.success('Card scanned! Details extracted for verification.')
     } catch (err: unknown) {
       console.error('OCR Card Scan error:', err)
       const msg = err instanceof Error ? err.message : 'Could not scan card photo'
@@ -184,6 +185,7 @@ export function LeadCaptureModal({
         profileId,
         organizationId,
         name: name.trim(),
+        jobTitle: jobTitle.trim() || null,
         phone: phone.trim() || null,
         email: email.trim() || null,
         company: company.trim() || null,
@@ -208,9 +210,10 @@ export function LeadCaptureModal({
 
   const resetForm = () => {
     setName('')
+    setJobTitle('')
+    setCompany('')
     setPhone('')
     setEmail('')
-    setCompany('')
     setNotes('')
     setCardPhotoPreview(null)
     setDetectedPhones([])
@@ -303,10 +306,10 @@ export function LeadCaptureModal({
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                      Smart Business Card Scanner
+                      Scan Business Card
                     </h4>
                     <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                      Extracts names, all phone numbers, emails &amp; addresses
+                      Take photo to auto-fill Name, Title, Company &amp; Contact info
                     </p>
                   </div>
                 </div>
@@ -338,7 +341,7 @@ export function LeadCaptureModal({
                   <div className="flex items-center justify-between text-[11px] font-medium text-blue-700 dark:text-blue-300">
                     <span className="flex items-center gap-1.5">
                       <SparklesIcon className="w-3 h-3 animate-spin" />
-                      Analyzing card template &amp; text...
+                      Extracting card information...
                     </span>
                     <span>{scanProgress}%</span>
                   </div>
@@ -367,7 +370,7 @@ export function LeadCaptureModal({
                       </div>
                       <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
                         <CheckCircle2Icon className="w-3.5 h-3.5" />
-                        {scanComplete ? 'OCR Extracted' : 'Card Loaded'}
+                        {scanComplete ? 'Details Extracted' : 'Card Loaded'}
                       </span>
                     </div>
 
@@ -398,7 +401,6 @@ export function LeadCaptureModal({
                     </div>
                   </div>
 
-                  {/* Expandable Raw OCR Text Display */}
                   {showRawText && rawOcrText && (
                     <div className="p-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-[11px] font-mono text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap max-h-32 overflow-y-auto border">
                       {rawOcrText}
@@ -417,7 +419,7 @@ export function LeadCaptureModal({
               </div>
 
               <div className="space-y-3">
-                {/* Full Name */}
+                {/* 1. Full Name */}
                 <div className="space-y-1">
                   <Label htmlFor="lead-name" className="text-xs font-medium">
                     Full Name <span className="text-red-500">*</span>
@@ -432,12 +434,41 @@ export function LeadCaptureModal({
                   />
                 </div>
 
-                {/* Phone & Email Inputs */}
+                {/* 2. Job Title & Company */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="lead-job-title" className="text-xs font-medium">
+                      Job Title / Designation
+                    </Label>
+                    <Input
+                      id="lead-job-title"
+                      placeholder="e.g. Sales Director"
+                      value={jobTitle}
+                      onChange={(e) => setJobTitle(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label htmlFor="lead-company" className="text-xs font-medium">
+                      Company / Organization
+                    </Label>
+                    <Input
+                      id="lead-company"
+                      placeholder="e.g. Prime Realty Ltd"
+                      value={company}
+                      onChange={(e) => setCompany(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                </div>
+
+                {/* 3. Phone & Email Inputs */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Phone Field */}
                   <div className="space-y-1">
                     <Label htmlFor="lead-phone" className="text-xs font-medium">
-                      Primary Phone / WhatsApp
+                      Phone / WhatsApp
                     </Label>
                     <Input
                       id="lead-phone"
@@ -453,7 +484,7 @@ export function LeadCaptureModal({
                       <div className="pt-1 space-y-1">
                         <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
                           <PhoneCallIcon className="w-3 h-3 text-blue-500" />
-                          Detected {detectedPhones.length} numbers (tap to select primary):
+                          {detectedPhones.length} numbers detected (tap to select primary):
                         </span>
                         <div className="flex flex-wrap gap-1">
                           {detectedPhones.map((p, idx) => (
@@ -494,7 +525,7 @@ export function LeadCaptureModal({
                       <div className="pt-1 space-y-1">
                         <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
                           <MailIcon className="w-3 h-3 text-indigo-500" />
-                          Detected {detectedEmails.length} emails (tap to select):
+                          {detectedEmails.length} emails detected (tap to select):
                         </span>
                         <div className="flex flex-wrap gap-1">
                           {detectedEmails.map((em, idx) => (
@@ -517,36 +548,15 @@ export function LeadCaptureModal({
                   </div>
                 </div>
 
-                {/* Company / Organization */}
+                {/* 4. Meeting Notes (Left Completely Clean & Empty) */}
                 <div className="space-y-1">
-                  <Label htmlFor="lead-company" className="text-xs font-medium">
-                    Company / Organization
+                  <Label htmlFor="lead-notes" className="text-xs font-medium">
+                    Meeting Notes
                   </Label>
-                  <Input
-                    id="lead-company"
-                    placeholder="e.g. Prime Realty Ltd"
-                    value={company}
-                    onChange={(e) => setCompany(e.target.value)}
-                    className="h-9 text-sm"
-                  />
-                </div>
-
-                {/* Meeting Notes / All Card Details */}
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="lead-notes" className="text-xs font-medium">
-                      Meeting Notes &amp; Card Details
-                    </Label>
-                    {detectedPhones.length > 1 && (
-                      <span className="text-[10px] text-muted-foreground">
-                        All extra numbers logged below
-                      </span>
-                    )}
-                  </div>
                   <Textarea
                     id="lead-notes"
-                    rows={4}
-                    placeholder="Discussion points, secondary numbers, project requirements..."
+                    rows={3}
+                    placeholder="Add your meeting discussion points, project requirements, or next follow-up date..."
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     className="text-xs font-sans resize-none"

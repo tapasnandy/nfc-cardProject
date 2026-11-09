@@ -18,6 +18,7 @@ export default async function LeadsPage() {
     .select(`
       id,
       name,
+      job_title,
       phone,
       email,
       company,
@@ -53,6 +54,7 @@ export default async function LeadsPage() {
   const leads: LeadItem[] = (rawLeads || []).map((l) => ({
     id: l.id,
     name: l.name,
+    job_title: l.job_title,
     phone: l.phone,
     email: l.email,
     company: l.company,

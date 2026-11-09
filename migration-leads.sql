@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS public.leads (
     card_id UUID REFERENCES public.cards(id) ON DELETE SET NULL,
     profile_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     name TEXT NOT NULL,
+    job_title TEXT,
     email TEXT,
     phone TEXT,
     company TEXT,
@@ -15,6 +16,9 @@ CREATE TABLE IF NOT EXISTS public.leads (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
+
+-- Ensure job_title column exists if table was already created
+ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS job_title TEXT;
 
 -- Indexing for quick lookups
 CREATE INDEX IF NOT EXISTS idx_leads_org ON public.leads(organization_id);

@@ -1,6 +1,12 @@
 /**
- * Advanced Business Card Parser & OCR Preprocessor
- * Supports varied templates, multi-number extraction, multi-email, address, and intelligent heuristics.
+ * High-Precision Business Card Parser & OCR Healer
+ * Solves:
+ * 1. Accurately identifies Full Name using font size ranking & layout structure.
+ * 2. Heals OCR digit typos in phone numbers (O->0, l->1, S->5, B->8) & detects all formats (+880, +1, local).
+ * 3. Heals email OCR typos (@ read as © or (c), .corn -> .com, spaces around @).
+ * 4. Extracts Company Name and dedicated Job Title.
+ * 5. Leaves Meeting Notes completely empty.
+ * 6. Uses clean, non-destructive canvas scaling to avoid pixel distortion and spelling mistakes.
  */
 
 export interface DetectedContactNumber {
@@ -9,14 +15,20 @@ export interface DetectedContactNumber {
   formattedLabel: string
 }
 
+export interface ParsedLineInfo {
+  text: string
+  height?: number
+  confidence?: number
+}
+
 export interface ParsedBusinessCard {
   name: string
-  phone: string // Primary phone (prefers mobile/cell)
-  phoneNumbers: DetectedContactNumber[] // All detected phone numbers
-  email: string // Primary email
-  emails: string[] // All detected emails
-  company: string
   jobTitle: string
+  company: string
+  phone: string
+  phoneNumbers: DetectedContactNumber[]
+  email: string
+  emails: string[]
   website: string
   websites: string[]
   address: string
@@ -25,132 +37,121 @@ export interface ParsedBusinessCard {
 
 const COMMON_TITLES = [
   'ceo', 'cto', 'cfo', 'coo', 'founder', 'co-founder', 'president', 'vice president', 'vp',
-  'director', 'managing director', 'executive director', 'general manager', 'manager', 'lead',
-  'sales manager', 'account manager', 'business development', 'consultant', 'senior consultant',
-  'specialist', 'officer', 'engineer', 'senior engineer', 'software engineer', 'developer',
-  'designer', 'ui/ux', 'creative director', 'architect', 'analyst', 'associate', 'advisor',
-  'representative', 'sales executive', 'agent', 'broker', 'realtor', 'partner', 'managing partner',
-  'attorney', 'advocate', 'lawyer', 'counsel', 'doctor', 'physician', 'surgeon', 'dr.', 'prof.',
-  'professor', 'head of', 'project manager', 'marketing manager', 'product manager'
+  'managing director', 'executive director', 'general manager', 'director', 'manager', 'lead',
+  'head of', 'sales director', 'sales manager', 'account manager', 'business development',
+  'senior consultant', 'consultant', 'specialist', 'officer', 'senior engineer', 'software engineer',
+  'engineer', 'developer', 'designer', 'creative director', 'architect', 'analyst', 'associate',
+  'advisor', 'representative', 'sales executive', 'agent', 'broker', 'realtor', 'partner',
+  'managing partner', 'attorney', 'advocate', 'lawyer', 'counsel', 'doctor', 'physician',
+  'surgeon', 'dr.', 'prof.', 'professor', 'project manager', 'marketing manager', 'product manager'
 ]
 
 const COMPANY_SUFFIXES = [
-  'inc', 'inc.', 'llc', 'llc.', 'ltd', 'ltd.', 'corp', 'corp.', 'corporation', 'company', 'co.',
-  'group', 'holdings', 'enterprises', 'solutions', 'technologies', 'technology', 'tech',
-  'agency', 'realty', 'real estate', 'properties', 'services', 'consulting', 'consultancy',
+  'ltd', 'ltd.', 'limited', 'inc', 'inc.', 'llc', 'llc.', 'corp', 'corp.', 'corporation',
+  'company', 'co.', 'group', 'holdings', 'enterprises', 'solutions', 'technologies', 'technology',
+  'tech', 'agency', 'realty', 'real estate', 'properties', 'services', 'consulting', 'consultancy',
   'associates', 'studios', 'studio', 'labs', 'lab', 'ventures', 'industries', 'logistics',
-  'international', 'pvt', 'pvt.', 'plc', 'gmbh', 'co., ltd', 'co.,ltd'
+  'international', 'pvt', 'pvt.', 'plc', 'gmbh', 'co., ltd', 'co.,ltd', 'hospital', 'clinic',
+  'bank', 'center', 'centre'
 ]
 
 const ADDRESS_KEYWORDS = [
   'road', 'rd.', 'rd', 'street', 'st.', 'st', 'avenue', 'ave.', 'ave', 'lane', 'ln',
   'boulevard', 'blvd', 'suite', 'ste', 'floor', 'fl.', 'fl', 'block', 'sector', 'house',
   'plot', 'building', 'tower', 'plaza', 'center', 'centre', 'square', 'city', 'po box',
-  'p.o. box', 'zip', 'state', 'district', 'dhaka', 'new york', 'london', 'dubai', 'singapore'
+  'p.o. box', 'zip', 'dhaka', 'new york', 'london', 'dubai', 'singapore'
 ]
 
 /**
- * Normalizes phone numbers for comparison and deduplication.
+ * Heals common OCR errors in email addresses (e.g. © for @, .corn for .com)
  */
-function cleanDigits(phone: string): string {
-  return phone.replace(/\D/g, '')
+export function extractAndHealEmails(rawText: string): string[] {
+  const emails: string[] = []
+
+  let text = rawText
+    // Fix OCR symbol errors for @
+    .replace(/([a-zA-Z0-9._%+-]+)\s*[@©®*]\s*([a-zA-Z0-9.-]+)\s*\.\s*([a-zA-Z]{2,})/g, '$1@$2.$3')
+    .replace(/([a-zA-Z0-9._%+-]+)\s*\(c\)\s*([a-zA-Z0-9.-]+)\s*\.\s*([a-zA-Z]{2,})/gi, '$1@$2.$3')
+    .replace(/([a-zA-Z0-9._%+-]+)\s*\[at\]\s*([a-zA-Z0-9.-]+)\s*\[dot\]\s*([a-zA-Z]{2,})/gi, '$1@$2.$3')
+
+  // Fix common TLD spelling mistakes made by OCR engines
+  text = text.replace(/@([a-zA-Z0-9.-]+)\.(corn|coom|con|c0m|cm)\b/gi, '@$1.com')
+  text = text.replace(/@([a-zA-Z0-9.-]+)\.(orq|orgg)\b/gi, '@$1.org')
+  text = text.replace(/@([a-zA-Z0-9.-]+)\.(nct|ncl)\b/gi, '@$1.net')
+
+  const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi
+  const matches = text.match(emailRegex) || []
+
+  for (const m of matches) {
+    let cleaned = m.toLowerCase().trim()
+    cleaned = cleaned.replace(/[.,;:]+$/, '')
+    if (cleaned.includes('@') && cleaned.includes('.') && !emails.includes(cleaned)) {
+      emails.push(cleaned)
+    }
+  }
+
+  return emails
 }
 
 /**
- * Parses raw OCR text from any business card layout.
+ * Heals OCR digit errors in phone lines and extracts all valid contact numbers.
  */
-export function parseBusinessCardText(text: string): ParsedBusinessCard {
-  const rawLines = text
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0)
-
-  // -------------------------------------------------------------
-  // 1. EXTRACT ALL EMAILS
-  // -------------------------------------------------------------
-  const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi
-  const foundEmails: string[] = []
-  const emailMatches = text.match(emailRegex) || []
-  for (const m of emailMatches) {
-    const cleaned = m.toLowerCase().trim()
-    if (!foundEmails.includes(cleaned)) {
-      foundEmails.push(cleaned)
-    }
-  }
-
-  // -------------------------------------------------------------
-  // 2. EXTRACT ALL WEBSITES & SOCIAL PROFILES
-  // -------------------------------------------------------------
-  const urlRegex = /(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?(?:\/[^\s,;]*)?)/gi
-  const foundWebsites: string[] = []
-  const urlMatches = text.match(urlRegex) || []
-  for (const match of urlMatches) {
-    const cleaned = match.trim()
-    // Ensure it's not the domain portion of an email
-    const isEmailDomain = foundEmails.some((em) => em.includes(cleaned) || cleaned.includes(em))
-    if (!isEmailDomain && !foundWebsites.includes(cleaned) && cleaned.includes('.')) {
-      // Don't match random file extensions like image.png or dots
-      if (!cleaned.match(/\.(png|jpg|jpeg|gif|svg|pdf)$/i)) {
-        foundWebsites.push(cleaned.startsWith('http') ? cleaned : `https://${cleaned}`)
-      }
-    }
-  }
-
-  // -------------------------------------------------------------
-  // 3. EXTRACT ALL PHONE NUMBERS (MULTIPLE NUMBERS HANDLING)
-  // -------------------------------------------------------------
-  // Matches labeled or unlabeled phone patterns across lines and multi-number lines
-  const phoneNumbers: DetectedContactNumber[] = []
+export function extractAndHealPhones(rawLines: string[]): DetectedContactNumber[] {
+  const results: DetectedContactNumber[] = []
   const seenDigits = new Set<string>()
 
-  // Sub-segments per line to catch lines like: "Tel: +1 234 567 | Mob: +1 987 654"
   for (const line of rawLines) {
-    // Check if line contains multiple phone segments separated by delimiters
+    const hasPhoneLabel = /(?:tel|phone|cell|mob|mobile|whatsapp|wa|fax|direct|contact|ph\b|\bt\b|\bm\b|\bo\b)/i.test(line)
+
+    // Split multi-number lines on delimiters
     const segments = line.split(/[|/\\;•]/).map((s) => s.trim()).filter(Boolean)
 
     for (const segment of segments) {
-      // Check for phone label
-      const labelMatch = segment.match(
-        /(?:(mob(?:ile)?|cell(?:ular)?|whatsapp|wa|m)\b|(?:tel(?:ephone)?|phone|office|work|o|t|ph)\b|(?:fax|f)\b|(?:direct|dir|d)\b)[\s.:#*-]*/i
-      )
+      let healed = segment
 
-      let detectedLabel: DetectedContactNumber['label'] = 'other'
-      let formattedLabel = 'Phone'
-
-      if (labelMatch) {
-        const rawLbl = labelMatch[1] ? labelMatch[1].toLowerCase() : (labelMatch[0] || '').toLowerCase()
-        if (rawLbl.match(/mob|cell|wa|whatsapp|^m$/i)) {
-          detectedLabel = 'mobile'
-          formattedLabel = 'Mobile'
-        } else if (rawLbl.match(/fax|^f$/i)) {
-          detectedLabel = 'fax'
-          formattedLabel = 'Fax'
-        } else if (rawLbl.match(/tel|phone|office|work|^t$|^o$|^ph$/i)) {
-          detectedLabel = 'office'
-          formattedLabel = 'Office / Tel'
-        } else if (rawLbl.match(/direct|dir|^d$/i)) {
-          detectedLabel = 'tel'
-          formattedLabel = 'Direct Line'
-        }
+      // If segment looks like a phone line, heal OCR character confusions in digits
+      if (hasPhoneLabel || /\d{3,}/.test(segment) || /^\+/.test(segment)) {
+        healed = healed
+          .replace(/(?<=\d|\+|\s)[oO](?=\d|\s|$)/g, '0')
+          .replace(/(?<=\d|\+|\s)[lI|](?=\d|\s|$)/g, '1')
+          .replace(/(?<=\d|\+|\s)[sS](?=\d|\s|$)/g, '5')
+          .replace(/(?<=\d|\+|\s)[bB](?=\d|\s|$)/g, '8')
       }
 
-      // Match phone numbers: allows optional country code +, spaces, dashes, parentheses, extensions
-      const phoneExtractRegex = /(?:(?:\+|00)\d{1,3}[\s.-]?)?(?:\(?\d{2,5}\)?[\s.-]?)?\d{3,4}[\s.-]?\d{3,5}(?:\s*(?:ext|x|ext\.)\s*\d{1,5})?/g
-      const matches = segment.match(phoneExtractRegex) || []
+      // Match phone numbers: handles country codes, spaces, dashes, parentheses
+      const phoneRegex = /(?:(?:\+|00)\d{1,4}[\s.-]?)?(?:\(?\d{2,5}\)?[\s.-]?)?\d{3,4}[\s.-]?\d{3,5}(?:\s*(?:ext|x)\s*\d{1,5})?/g
+      const matches = healed.match(phoneRegex) || []
 
-      for (const num of matches) {
-        const trimmed = num.trim()
-        const digits = cleanDigits(trimmed)
+      for (const m of matches) {
+        const cleaned = m.trim().replace(/^[-.\s]+|[-.\s]+$/g, '')
+        const digits = cleaned.replace(/\D/g, '')
 
-        // Validate length: most global numbers have 7 to 15 digits
-        if (digits.length >= 7 && digits.length <= 16) {
-          // Avoid years or duplicate numbers
-          if (!seenDigits.has(digits)) {
+        if (digits.length >= 7 && digits.length <= 16 && !seenDigits.has(digits)) {
+          // Avoid matching 4-digit years like 2024
+          if (!/^(19|20)\d{2}$/.test(digits)) {
             seenDigits.add(digits)
-            phoneNumbers.push({
-              number: trimmed,
-              label: detectedLabel,
-              formattedLabel: formattedLabel,
+
+            let label: DetectedContactNumber['label'] = 'other'
+            let formattedLabel = 'Phone'
+
+            if (/mob|cell|wa|whatsapp|\bm\b/i.test(segment)) {
+              label = 'mobile'
+              formattedLabel = 'Mobile'
+            } else if (/fax|\bf\b/i.test(segment)) {
+              label = 'fax'
+              formattedLabel = 'Fax'
+            } else if (/office|work|\bo\b/i.test(segment)) {
+              label = 'office'
+              formattedLabel = 'Office'
+            } else if (/tel|phone|\bt\b|\bph\b/i.test(segment)) {
+              label = 'tel'
+              formattedLabel = 'Tel'
+            }
+
+            results.push({
+              number: cleaned,
+              label,
+              formattedLabel,
             })
           }
         }
@@ -158,12 +159,44 @@ export function parseBusinessCardText(text: string): ParsedBusinessCard {
     }
   }
 
-  // Determine Primary Phone:
-  // Preference order: mobile -> direct/office -> first phone found
+  return results
+}
+
+/**
+ * Intelligent Business Card Parser
+ * Extracts Name, Job Title, Company, Phone Numbers, Emails, and Website with high precision.
+ */
+export function parseBusinessCardText(
+  text: string,
+  linesData?: ParsedLineInfo[]
+): ParsedBusinessCard {
+  const rawLines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim().replace(/^[•|\-_:;*]+\s*/, ''))
+    .filter((l) => l.length > 0)
+
+  // 1. Emails
+  const foundEmails = extractAndHealEmails(text)
+
+  // 2. Websites
+  const urlRegex = /(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?(?:\/[^\s,;]*)?)/gi
+  const foundWebsites: string[] = []
+  const urlMatches = text.match(urlRegex) || []
+  for (const m of urlMatches) {
+    const cleaned = m.trim().replace(/[.,;:]+$/, '')
+    const isEmailDomain = foundEmails.some((em) => em.includes(cleaned) || cleaned.includes(em))
+    if (!isEmailDomain && !foundWebsites.includes(cleaned) && cleaned.includes('.')) {
+      if (!cleaned.match(/\.(png|jpg|jpeg|gif|svg|pdf)$/i)) {
+        foundWebsites.push(cleaned.startsWith('http') ? cleaned : `https://${cleaned}`)
+      }
+    }
+  }
+
+  // 3. Phones
+  const phoneNumbers = extractAndHealPhones(rawLines)
   let primaryPhone = ''
   const mobileMatch = phoneNumbers.find((p) => p.label === 'mobile')
   const officeMatch = phoneNumbers.find((p) => p.label === 'office' || p.label === 'tel')
-
   if (mobileMatch) {
     primaryPhone = mobileMatch.number
   } else if (officeMatch) {
@@ -172,50 +205,44 @@ export function parseBusinessCardText(text: string): ParsedBusinessCard {
     primaryPhone = phoneNumbers[0].number
   }
 
-  // -------------------------------------------------------------
-  // 4. EXTRACT JOB TITLE
-  // -------------------------------------------------------------
+  // 4. Job Title
   let jobTitle = ''
   for (const line of rawLines) {
     const lower = line.toLowerCase()
-    const isTitle = COMMON_TITLES.some((t) => lower.includes(t))
-    if (isTitle && !line.includes('@') && !line.match(/\d{5,}/)) {
-      // Don't capture overly long lines as title
-      if (line.length <= 60) {
-        jobTitle = line
-        break
-      }
+    const isTitle = COMMON_TITLES.some((t) => {
+      const reg = new RegExp(`\\b${t}\\b`, 'i')
+      return reg.test(lower)
+    })
+    if (isTitle && !line.includes('@') && !line.match(/\d{5,}/) && line.length <= 60) {
+      jobTitle = line
+      break
     }
   }
 
-  // -------------------------------------------------------------
-  // 5. EXTRACT COMPANY / ORGANIZATION
-  // -------------------------------------------------------------
+  // 5. Company Name
   let company = ''
   for (const line of rawLines) {
     const lower = line.toLowerCase()
     const isCompany = COMPANY_SUFFIXES.some((suffix) => {
-      const words = lower.split(/[\s,.-]+/)
-      return words.includes(suffix) || lower.endsWith(suffix)
+      const reg = new RegExp(`\\b${suffix}\\b`, 'i')
+      return reg.test(lower)
     })
-
-    if (isCompany && line !== jobTitle && !line.includes('@') && line.length <= 80) {
+    if (isCompany && line !== jobTitle && !line.includes('@') && line.length <= 70) {
       company = line
       break
     }
   }
 
-  // If company wasn't found by suffix, derive from corporate email or website domain
+  // Fallback for company from email domain or website
   if (!company) {
-    const primaryEmail = foundEmails[0]
-    if (primaryEmail) {
-      const domain = primaryEmail.split('@')[1]?.split('.')[0]
-      if (domain && !['gmail', 'yahoo', 'hotmail', 'outlook', 'icloud', 'proton', 'mail', 'live'].includes(domain)) {
+    const pEmail = foundEmails[0]
+    if (pEmail) {
+      const domain = pEmail.split('@')[1]?.split('.')[0]
+      if (domain && !['gmail', 'yahoo', 'hotmail', 'outlook', 'icloud', 'proton', 'mail', 'live', 'aol'].includes(domain)) {
         company = domain.charAt(0).toUpperCase() + domain.slice(1)
       }
     }
   }
-
   if (!company && foundWebsites.length > 0) {
     try {
       const host = new URL(foundWebsites[0]).hostname.replace(/^www\./, '').split('.')[0]
@@ -227,9 +254,7 @@ export function parseBusinessCardText(text: string): ParsedBusinessCard {
     }
   }
 
-  // -------------------------------------------------------------
-  // 6. EXTRACT ADDRESS
-  // -------------------------------------------------------------
+  // 6. Address
   const addressLines: string[] = []
   for (const line of rawLines) {
     const lower = line.toLowerCase()
@@ -246,58 +271,87 @@ export function parseBusinessCardText(text: string): ParsedBusinessCard {
   }
   const address = addressLines.slice(0, 2).join(', ')
 
-  // -------------------------------------------------------------
-  // 7. EXTRACT PERSON NAME (HIGH PRECISION HEURISTICS)
-  // -------------------------------------------------------------
+  // 7. Full Name Extraction (Using Font Size Ranking & Structural Heuristics)
   let name = ''
 
-  // Filter candidate lines
-  const candidateNameLines = rawLines.filter((line) => {
-    // Eliminate lines with phone numbers, emails, websites, or address keywords
-    if (line.includes('@') || line.includes('www.') || line.includes('http') || line.includes('.com')) {
-      return false
-    }
-    if (phoneNumbers.some((p) => line.includes(p.number) || cleanDigits(line).length >= 7)) {
-      return false
-    }
-    if (line === jobTitle || line === company || addressLines.includes(line)) {
-      return false
-    }
-    // Check if line consists mostly of letters and spaces (2 to 4 words)
-    const words = line.split(/\s+/).filter(Boolean)
-    if (words.length >= 2 && words.length <= 4) {
-      const letterPercentage = (line.replace(/[^a-zA-Z]/g, '').length / line.length)
-      return letterPercentage > 0.8
-    }
-    return false
-  })
+  // If OCR provided line bounding box heights, sort candidate lines by font size!
+  if (linesData && linesData.length > 0) {
+    const candidates = linesData
+      .filter((l) => {
+        const t = l.text.trim()
+        if (t.includes('@') || t.includes('www.') || t.includes('http')) return false
+        if (phoneNumbers.some((p) => t.includes(p.number) || t.replace(/\D/g, '').length >= 6)) return false
+        if (t === jobTitle || t === company || addressLines.includes(t)) return false
+        const lettersOnly = t.replace(/[^a-zA-Z]/g, '')
+        const words = t.split(/\s+/).filter(Boolean)
+        return words.length >= 2 && words.length <= 4 && lettersOnly.length >= 4
+      })
+      .sort((a, b) => (b.height || 0) - (a.height || 0))
 
-  if (candidateNameLines.length > 0) {
-    name = candidateNameLines[0]
-  } else {
-    // Fallback: Pick top non-contact line with letters
-    for (const line of rawLines) {
+    if (candidates.length > 0) {
+      name = candidates[0].text.trim().replace(/[.,:;*|]+$/, '')
+    }
+  }
+
+  // Fallback name search if bounding box ranking didn't find one
+  if (!name) {
+    const candidateLines = rawLines.filter((line) => {
+      if (line.includes('@') || line.includes('www.') || line.includes('http') || line.includes('.com')) return false
+      if (phoneNumbers.some((p) => line.includes(p.number) || line.replace(/\D/g, '').length >= 6)) return false
+      if (line === jobTitle || line === company || addressLines.includes(line)) return false
+
+      const words = line.split(/\s+/).filter(Boolean)
+      if (words.length >= 2 && words.length <= 4) {
+        const letterRatio = line.replace(/[^a-zA-Z]/g, '').length / line.length
+        return letterRatio > 0.75
+      }
+      return false
+    })
+
+    if (candidateLines.length > 0) {
+      name = candidateLines[0].replace(/[.,:;*|]+$/, '')
+    } else {
+      // Last resort: Top non-contact line with letters
+      for (const line of rawLines) {
+        if (
+          !line.includes('@') &&
+          !line.match(/\d{4,}/) &&
+          line !== jobTitle &&
+          line !== company &&
+          line.length >= 3 &&
+          line.length <= 35
+        ) {
+          name = line.replace(/[.,:;*|]+$/, '')
+          break
+        }
+      }
+    }
+  }
+
+  // If job title was not found, check the line immediately below the Name
+  if (!jobTitle && name) {
+    const nameIndex = rawLines.findIndex((l) => l.includes(name))
+    if (nameIndex >= 0 && nameIndex + 1 < rawLines.length) {
+      const nextLine = rawLines[nameIndex + 1]
       if (
-        !line.includes('@') &&
-        !line.match(/\d{5,}/) &&
-        line !== jobTitle &&
-        line !== company &&
-        line.length <= 40
+        !nextLine.includes('@') &&
+        !phoneNumbers.some((p) => nextLine.includes(p.number)) &&
+        nextLine !== company &&
+        nextLine.length <= 50
       ) {
-        name = line
-        break
+        jobTitle = nextLine
       }
     }
   }
 
   return {
     name,
+    jobTitle,
+    company,
     phone: primaryPhone,
     phoneNumbers,
     email: foundEmails[0] || '',
     emails: foundEmails,
-    company,
-    jobTitle,
     website: foundWebsites[0] || '',
     websites: foundWebsites,
     address,
@@ -306,10 +360,9 @@ export function parseBusinessCardText(text: string): ParsedBusinessCard {
 }
 
 /**
- * Advanced Image Preprocessor for Business Cards:
- * 1. Resizes photo to optimal OCR resolution.
- * 2. Applies Grayscale conversion.
- * 3. Enhances contrast and sharpness to make faded/dark card text pop clearly.
+ * Clean Canvas Image Resizer
+ * Scales mobile photos to optimal OCR size (max 1800px) with clean bilinear resampling.
+ * Preserves true RGB font anti-aliasing and avoids destructive pixel distortion.
  */
 export async function preprocessCardImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -333,54 +386,19 @@ export async function preprocessCardImage(file: File): Promise<string> {
         const canvas = document.createElement('canvas')
         canvas.width = width
         canvas.height = height
-        const ctx = canvas.getContext('2d', { willReadFrequently: true })
+        const ctx = canvas.getContext('2d')
 
         if (!ctx) {
           resolve(e.target?.result as string)
           return
         }
 
-        // 1. Draw base image
+        // Draw cleanly preserving natural font anti-aliasing
+        ctx.imageSmoothingEnabled = true
+        ctx.imageSmoothingQuality = 'high'
         ctx.drawImage(img, 0, 0, width, height)
 
-        try {
-          // 2. Grayscale + Dynamic Contrast Enhancement
-          const imgData = ctx.getImageData(0, 0, width, height)
-          const data = imgData.data
-
-          // Find min and max luminance for histogram contrast stretching
-          let minLum = 255
-          let maxLum = 0
-
-          for (let i = 0; i < data.length; i += 4) {
-            const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
-            if (lum < minLum) minLum = lum
-            if (lum > maxLum) maxLum = lum
-          }
-
-          const range = maxLum - minLum || 1
-
-          for (let i = 0; i < data.length; i += 4) {
-            const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
-            // Contrast stretch to [0, 255]
-            const stretched = Math.min(255, Math.max(0, ((lum - minLum) / range) * 255))
-
-            // Slight S-curve contrast boost for crisp letter edges
-            const enhanced = stretched < 128
-              ? (stretched * stretched) / 128
-              : 255 - ((255 - stretched) * (255 - stretched)) / 128
-
-            data[i] = enhanced
-            data[i + 1] = enhanced
-            data[i + 2] = enhanced
-          }
-
-          ctx.putImageData(imgData, 0, 0)
-        } catch (procErr) {
-          console.warn('Canvas image enhancement skipped, using standard draw:', procErr)
-        }
-
-        resolve(canvas.toDataURL('image/jpeg', 0.92))
+        resolve(canvas.toDataURL('image/jpeg', 0.95))
       }
       img.onerror = () => reject(new Error('Failed to load card image'))
       img.src = e.target?.result as string

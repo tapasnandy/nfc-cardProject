@@ -25,6 +25,7 @@ import { toast } from 'sonner'
 export interface LeadItem {
   id: string
   name: string
+  job_title?: string | null
   phone?: string | null
   email?: string | null
   company?: string | null
@@ -148,6 +149,7 @@ export function LeadList({ initialLeads, cards, profiles }: LeadListProps) {
     const headers = [
       'ID',
       'Name',
+      'Job Title',
       'Company',
       'Phone',
       'Email',
@@ -168,6 +170,7 @@ export function LeadList({ initialLeads, cards, profiles }: LeadListProps) {
     const rows = filteredLeads.map((l) => [
       escapeCsv(l.id),
       escapeCsv(l.name),
+      escapeCsv(l.job_title),
       escapeCsv(l.company),
       escapeCsv(l.phone),
       escapeCsv(l.email),
@@ -326,10 +329,14 @@ export function LeadList({ initialLeads, cards, profiles }: LeadListProps) {
                       </Badge>
                     </div>
 
-                    {lead.company && (
+                    {(lead.job_title || lead.company) && (
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <BuildingIcon className="w-3.5 h-3.5" />
-                        <span>{lead.company}</span>
+                        <span>
+                          {lead.job_title}
+                          {lead.job_title && lead.company ? ' • ' : ''}
+                          {lead.company}
+                        </span>
                       </div>
                     )}
                   </div>
