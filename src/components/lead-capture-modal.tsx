@@ -22,9 +22,18 @@ import {
   RefreshCwIcon,
   SaveIcon,
   ScanTextIcon,
+  PhoneCallIcon,
+  MailIcon,
+  FileTextIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
 } from 'lucide-react'
 import { submitLead } from '@/app/actions/lead'
-import { parseBusinessCardText, preprocessCardImage } from '@/lib/business-card-parser'
+import {
+  parseBusinessCardText,
+  preprocessCardImage,
+  DetectedContactNumber,
+} from '@/lib/business-card-parser'
 import { toast } from 'sonner'
 import Image from 'next/image'
 
@@ -58,6 +67,10 @@ export function LeadCaptureModal({
   const [isScanning, setIsScanning] = useState(false)
   const [scanProgress, setScanProgress] = useState(0)
   const [scanComplete, setScanComplete] = useState(false)
+  const [detectedPhones, setDetectedPhones] = useState<DetectedContactNumber[]>([])
+  const [detectedEmails, setDetectedEmails] = useState<string[]>([])
+  const [rawOcrText, setRawOcrText] = useState<string>('')
+  const [showRawText, setShowRawText] = useState(false)
 
   const handleScanCard = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -66,14 +79,15 @@ export function LeadCaptureModal({
     setIsScanning(true)
     setScanProgress(5)
     setScanComplete(false)
+    setShowRawText(false)
 
     try {
-      // 1. Generate preview & optimize image for OCR
+      // 1. Generate preview & optimize image for OCR (contrast normalization, resizing)
       const preprocessedUrl = await preprocessCardImage(file)
       setCardPhotoPreview(preprocessedUrl)
       setScanProgress(20)
 
-      // 2. Dynamically load Tesseract.js (keeps initial bundle small)
+      // 2. Dynamically load Tesseract.js
       const Tesseract = (await import('tesseract.js')).default
 
       const result = await Tesseract.recognize(preprocessedUrl, 'eng', {
@@ -85,36 +99,63 @@ export function LeadCaptureModal({
       })
 
       const rawText = result.data.text || ''
+      setRawOcrText(rawText)
       setScanProgress(100)
 
-      // 3. Parse extracted card text
+      // 3. Intelligent multi-layout parser
       const parsed = parseBusinessCardText(rawText)
 
-      if (parsed.name && !name) setName(parsed.name)
-      else if (parsed.name) setName(parsed.name)
-
+      if (parsed.name) setName(parsed.name)
       if (parsed.phone) setPhone(parsed.phone)
       if (parsed.email) setEmail(parsed.email)
       if (parsed.company) setCompany(parsed.company)
 
-      // Include job title or unparsed card text in notes
-      let extraNotes = ''
+      setDetectedPhones(parsed.phoneNumbers)
+      setDetectedEmails(parsed.emails)
+
+      // 4. Assemble comprehensive notes preserving all secondary contacts
+      const notesParts: string[] = []
       if (parsed.jobTitle) {
-        extraNotes += `Title: ${parsed.jobTitle}`
+        notesParts.push(`Job Title: ${parsed.jobTitle}`)
       }
+
+      // Log secondary phone numbers if card had multiple
+      const otherPhones = parsed.phoneNumbers.filter((p) => p.number !== parsed.phone)
+      if (otherPhones.length > 0) {
+        notesParts.push(
+          `Other Numbers: ${otherPhones.map((p) => `${p.formattedLabel}: ${p.number}`).join(' | ')}`
+        )
+      }
+
+      // Log secondary emails if card had multiple
+      const otherEmails = parsed.emails.filter((em) => em !== parsed.email)
+      if (otherEmails.length > 0) {
+        notesParts.push(`Other Emails: ${otherEmails.join(', ')}`)
+      }
+
       if (parsed.website) {
-        extraNotes += extraNotes ? ` • Website: ${parsed.website}` : `Website: ${parsed.website}`
+        notesParts.push(`Website: ${parsed.website}`)
       }
-      if (extraNotes) {
-        setNotes((prev) => (prev ? `${extraNotes}\n${prev}` : extraNotes))
+
+      if (parsed.address) {
+        notesParts.push(`Address: ${parsed.address}`)
+      }
+
+      if (notesParts.length > 0) {
+        const compiled = notesParts.join('\n')
+        setNotes((prev) => (prev ? `${compiled}\n\n${prev}` : compiled))
       }
 
       setScanComplete(true)
-      toast.success('Card text extracted! Please verify the details below.')
+      const numberCount = parsed.phoneNumbers.length
+      const emailCount = parsed.emails.length
+      toast.success(
+        `Card scanned! Extracted ${numberCount} number${numberCount !== 1 ? 's' : ''} and ${emailCount} email${emailCount !== 1 ? 's' : ''}.`
+      )
     } catch (err: unknown) {
       console.error('OCR Card Scan error:', err)
       const msg = err instanceof Error ? err.message : 'Could not scan card photo'
-      toast.error(`OCR scan error: ${msg}. You can still fill details manually.`)
+      toast.error(`OCR scan error: ${msg}. You can enter details manually.`)
     } finally {
       setIsScanning(false)
       if (fileInputRef.current) {
@@ -172,6 +213,10 @@ export function LeadCaptureModal({
     setCompany('')
     setNotes('')
     setCardPhotoPreview(null)
+    setDetectedPhones([])
+    setDetectedEmails([])
+    setRawOcrText('')
+    setShowRawText(false)
     setScanComplete(false)
     setIsSuccess(false)
   }
@@ -192,7 +237,7 @@ export function LeadCaptureModal({
         <span>Connect &amp; Send Enquiry</span>
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-md p-6 max-h-[92vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg p-5 sm:p-6 max-h-[92vh] overflow-y-auto">
         <DialogHeader className="text-left">
           <DialogTitle className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
             {isSuccess
@@ -202,7 +247,7 @@ export function LeadCaptureModal({
           <DialogDescription className="text-xs text-zinc-500 dark:text-zinc-400">
             {isSuccess
               ? 'The details have been saved and logged to the dashboard.'
-              : 'Scan a physical business card or enter the visitor details below.'}
+              : 'Scan a physical card with your camera or enter contact details below.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -251,17 +296,17 @@ export function LeadCaptureModal({
 
             {/* SCAN BUSINESS CARD ACTION CARD */}
             <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 border border-blue-200/60 dark:border-blue-900/60 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0">
                     <ScanTextIcon className="w-4 h-4" />
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                      Scan Business Card
+                      Smart Business Card Scanner
                     </h4>
                     <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                      Take a photo or upload a card to extract details automatically
+                      Extracts names, all phone numbers, emails &amp; addresses
                     </p>
                   </div>
                 </div>
@@ -281,19 +326,19 @@ export function LeadCaptureModal({
                   ) : (
                     <>
                       <CameraIcon className="w-3.5 h-3.5 mr-1.5" />
-                      Take Photo
+                      Scan Card
                     </>
                   )}
                 </Button>
               </div>
 
-              {/* Live Scanning Progress or Scanned Card Preview */}
+              {/* Live Scanning Progress Bar */}
               {isScanning && (
                 <div className="space-y-2 pt-1">
                   <div className="flex items-center justify-between text-[11px] font-medium text-blue-700 dark:text-blue-300">
                     <span className="flex items-center gap-1.5">
                       <SparklesIcon className="w-3 h-3 animate-spin" />
-                      Analyzing card with OCR...
+                      Analyzing card template &amp; text...
                     </span>
                     <span>{scanProgress}%</span>
                   </div>
@@ -306,44 +351,73 @@ export function LeadCaptureModal({
                 </div>
               )}
 
+              {/* Card Photo Preview & Summary Badge */}
               {cardPhotoPreview && !isScanning && (
-                <div className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-zinc-900 border border-blue-200/50 dark:border-blue-900/40 text-xs">
-                  <div className="flex items-center gap-2">
-                    <div className="relative w-12 h-8 rounded-lg overflow-hidden border">
-                      <Image
-                        src={cardPhotoPreview}
-                        alt="Scanned card preview"
-                        fill
-                        unoptimized
-                        className="object-cover"
-                      />
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-zinc-900 border border-blue-200/50 dark:border-blue-900/40 text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="relative w-12 h-8 rounded-lg overflow-hidden border">
+                        <Image
+                          src={cardPhotoPreview}
+                          alt="Scanned card preview"
+                          fill
+                          unoptimized
+                          className="object-cover"
+                        />
+                      </div>
+                      <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                        <CheckCircle2Icon className="w-3.5 h-3.5" />
+                        {scanComplete ? 'OCR Extracted' : 'Card Loaded'}
+                      </span>
                     </div>
-                    <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                      <CheckCircle2Icon className="w-3.5 h-3.5" />
-                      {scanComplete ? 'Card OCR Extracted' : 'Card Loaded'}
-                    </span>
+
+                    <div className="flex items-center gap-2">
+                      {rawOcrText && (
+                        <button
+                          type="button"
+                          onClick={() => setShowRawText(!showRawText)}
+                          className="text-[11px] text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 flex items-center gap-0.5 cursor-pointer"
+                        >
+                          <FileTextIcon className="w-3 h-3" />
+                          <span>{showRawText ? 'Hide OCR' : 'View OCR'}</span>
+                          {showRawText ? (
+                            <ChevronUpIcon className="w-3 h-3" />
+                          ) : (
+                            <ChevronDownIcon className="w-3 h-3" />
+                          )}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer font-medium"
+                      >
+                        <RefreshCwIcon className="w-3 h-3" />
+                        <span>Retake</span>
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer font-medium"
-                  >
-                    <RefreshCwIcon className="w-3 h-3" />
-                    <span>Retake</span>
-                  </button>
+
+                  {/* Expandable Raw OCR Text Display */}
+                  {showRawText && rawOcrText && (
+                    <div className="p-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-[11px] font-mono text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap max-h-32 overflow-y-auto border">
+                      {rawOcrText}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
             {/* SINGLE CLIENT / VISITOR INFORMATION SECTION */}
             <form onSubmit={handleSubmit} className="space-y-3.5">
-              <div className="border-b pb-2 pt-1">
+              <div className="border-b pb-1.5">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Client / Visitor Information
                 </h3>
               </div>
 
               <div className="space-y-3">
+                {/* Full Name */}
                 <div className="space-y-1">
                   <Label htmlFor="lead-name" className="text-xs font-medium">
                     Full Name <span className="text-red-500">*</span>
@@ -358,10 +432,12 @@ export function LeadCaptureModal({
                   />
                 </div>
 
+                {/* Phone & Email Inputs */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Phone Field */}
                   <div className="space-y-1">
                     <Label htmlFor="lead-phone" className="text-xs font-medium">
-                      Phone / WhatsApp
+                      Primary Phone / WhatsApp
                     </Label>
                     <Input
                       id="lead-phone"
@@ -371,8 +447,35 @@ export function LeadCaptureModal({
                       onChange={(e) => setPhone(e.target.value)}
                       className="h-9 text-sm"
                     />
+
+                    {/* MULTI-NUMBER QUICK SELECTOR PILLS */}
+                    {detectedPhones.length > 1 && (
+                      <div className="pt-1 space-y-1">
+                        <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
+                          <PhoneCallIcon className="w-3 h-3 text-blue-500" />
+                          Detected {detectedPhones.length} numbers (tap to select primary):
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {detectedPhones.map((p, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => setPhone(p.number)}
+                              className={`text-[10px] px-2 py-0.5 rounded-md border font-mono transition-all cursor-pointer ${
+                                phone === p.number
+                                  ? 'bg-blue-600 text-white border-blue-600 font-semibold shadow-xs'
+                                  : 'bg-muted/70 text-foreground hover:bg-muted border-border'
+                              }`}
+                            >
+                              {p.formattedLabel}: {p.number}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
+                  {/* Email Field */}
                   <div className="space-y-1">
                     <Label htmlFor="lead-email" className="text-xs font-medium">
                       Email Address
@@ -385,9 +488,36 @@ export function LeadCaptureModal({
                       onChange={(e) => setEmail(e.target.value)}
                       className="h-9 text-sm"
                     />
+
+                    {/* MULTI-EMAIL QUICK SELECTOR PILLS */}
+                    {detectedEmails.length > 1 && (
+                      <div className="pt-1 space-y-1">
+                        <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
+                          <MailIcon className="w-3 h-3 text-indigo-500" />
+                          Detected {detectedEmails.length} emails (tap to select):
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {detectedEmails.map((em, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => setEmail(em)}
+                              className={`text-[10px] px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                                email === em
+                                  ? 'bg-indigo-600 text-white border-indigo-600 font-semibold shadow-xs'
+                                  : 'bg-muted/70 text-foreground hover:bg-muted border-border'
+                              }`}
+                            >
+                              {em}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
+                {/* Company / Organization */}
                 <div className="space-y-1">
                   <Label htmlFor="lead-company" className="text-xs font-medium">
                     Company / Organization
@@ -401,17 +531,25 @@ export function LeadCaptureModal({
                   />
                 </div>
 
+                {/* Meeting Notes / All Card Details */}
                 <div className="space-y-1">
-                  <Label htmlFor="lead-notes" className="text-xs font-medium">
-                    Meeting Notes / Requirements
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="lead-notes" className="text-xs font-medium">
+                      Meeting Notes &amp; Card Details
+                    </Label>
+                    {detectedPhones.length > 1 && (
+                      <span className="text-[10px] text-muted-foreground">
+                        All extra numbers logged below
+                      </span>
+                    )}
+                  </div>
                   <Textarea
                     id="lead-notes"
-                    rows={3}
-                    placeholder="Discussion points, project requirements, follow-up timeline..."
+                    rows={4}
+                    placeholder="Discussion points, secondary numbers, project requirements..."
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    className="text-sm resize-none"
+                    className="text-xs font-sans resize-none"
                   />
                 </div>
               </div>
