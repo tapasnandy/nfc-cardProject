@@ -177,11 +177,6 @@ export function LeadCaptureModal({
       return
     }
 
-    if (!phone.trim() && !email.trim()) {
-      toast.error('Please enter at least a phone number or email address.')
-      return
-    }
-
     setIsSubmitting(true)
     try {
       const res = await submitLead({
