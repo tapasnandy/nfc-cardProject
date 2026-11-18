@@ -19,13 +19,14 @@ export const metadata: Metadata = {
     "Create, manage, and share your digital identity in 1 tap with Tapqori. Capture real client leads, scan visiting cards with AI, and track sales interactions effortlessly.",
   icons: {
     icon: [
-      { url: "/tapqori-favicon.png", type: "image/png" },
-      { url: "/icon.png", type: "image/png" },
+      { url: "/favicon.ico?v=2", sizes: "any" },
+      { url: "/tapqori-favicon.png?v=2", type: "image/png" },
+      { url: "/icon.png?v=2", type: "image/png" },
     ],
     apple: [
-      { url: "/tapqori-favicon.png", sizes: "180x180", type: "image/png" },
+      { url: "/tapqori-favicon.png?v=2", sizes: "180x180", type: "image/png" },
     ],
-    shortcut: ["/tapqori-favicon.png"],
+    shortcut: ["/favicon.ico?v=2"],
   },
   openGraph: {
     title: "Tapqori — Smart NFC Business Cards & Lead Platform",
@@ -55,6 +56,11 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        <link rel="icon" href="/favicon.ico?v=2" sizes="any" />
+        <link rel="icon" href="/tapqori-favicon.png?v=2" type="image/png" />
+        <link rel="apple-touch-icon" href="/tapqori-favicon.png?v=2" />
+      </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}
         <Toaster richColors position="top-right" />

@@ -11,49 +11,94 @@ interface BrandLogoProps {
   theme?: 'dark' | 'light' | 'auto'
 }
 
-const sizeConfig = {
-  sm: { icon: 28, text: 'text-lg', gap: 'gap-2' },
-  md: { icon: 34, text: 'text-xl', gap: 'gap-2.5' },
-  lg: { icon: 42, text: 'text-2xl', gap: 'gap-3' },
-  xl: { icon: 54, text: 'text-3xl', gap: 'gap-3.5' },
+const logoDimensions = {
+  sm: { height: 30, width: 66, iconSize: 30 },
+  md: { height: 38, width: 84, iconSize: 38 },
+  lg: { height: 50, width: 110, iconSize: 50 },
+  xl: { height: 64, width: 140, iconSize: 64 },
 }
 
 /**
  * Official Tapqori Brand Logo Component.
- * Incorporates the official logo and favicon with perfect responsive scaling.
+ * Uses the user-provided official brand image asset with automatic dark/light theme support.
  */
 export function BrandLogo({
   className,
   size = 'md',
   showText = true,
   linkToHome = true,
+  theme = 'auto',
 }: BrandLogoProps) {
-  const { icon, text, gap } = sizeConfig[size]
+  const dim = logoDimensions[size]
 
   const content = (
-    <div className={cn('inline-flex items-center select-none group', gap, className)}>
-      <div className="relative shrink-0 overflow-hidden rounded-xl transition-transform duration-200 group-hover:scale-105 shadow-xs">
-        <Image
-          src="/tapqori-favicon.png"
-          alt="Tapqori"
-          width={icon}
-          height={icon}
-          priority
-          className="object-contain"
-        />
-      </div>
-
-      {showText && (
-        <span className={cn('font-extrabold tracking-tight text-foreground transition-colors', text)}>
-          tap<span className="text-[#13B1A5]">qori</span>
-        </span>
+    <div className={cn('inline-flex items-center select-none group', className)}>
+      {showText ? (
+        <div className="relative inline-flex items-center transition-transform duration-200 group-hover:scale-102">
+          {theme === 'light' ? (
+            <Image
+              src="/tapqori-logo.png"
+              alt="Tapqori"
+              width={dim.width}
+              height={dim.height}
+              priority
+              style={{ height: dim.height, width: 'auto' }}
+              className="object-contain"
+            />
+          ) : theme === 'dark' ? (
+            <Image
+              src="/tapqori-logo-dark.png"
+              alt="Tapqori"
+              width={dim.width}
+              height={dim.height}
+              priority
+              style={{ height: dim.height, width: 'auto' }}
+              className="object-contain"
+            />
+          ) : (
+            <>
+              {/* Light mode: crisp navy & teal brand logo */}
+              <Image
+                src="/tapqori-logo.png"
+                alt="Tapqori"
+                width={dim.width}
+                height={dim.height}
+                priority
+                style={{ height: dim.height, width: 'auto' }}
+                className="object-contain dark:hidden"
+              />
+              {/* Dark mode: crisp white & teal brand logo */}
+              <Image
+                src="/tapqori-logo-dark.png"
+                alt="Tapqori"
+                width={dim.width}
+                height={dim.height}
+                priority
+                style={{ height: dim.height, width: 'auto' }}
+                className="object-contain hidden dark:block"
+              />
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="relative shrink-0 overflow-hidden rounded-xl transition-transform duration-200 group-hover:scale-105 shadow-xs">
+          <Image
+            src="/tapqori-favicon.png"
+            alt="Tapqori"
+            width={dim.iconSize}
+            height={dim.iconSize}
+            priority
+            style={{ width: dim.iconSize, height: dim.iconSize }}
+            className="object-contain rounded-xl"
+          />
+        </div>
       )}
     </div>
   )
 
   if (linkToHome) {
     return (
-      <Link href="/" aria-label="Tapqori Home" className="focus:outline-hidden">
+      <Link href="/" aria-label="Tapqori Home" className="focus:outline-hidden inline-flex items-center">
         {content}
       </Link>
     )
