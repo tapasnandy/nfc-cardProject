@@ -105,11 +105,11 @@ export function WriterInstructions({ cards }: { cards: any[] }) {
   return (
     <div className="space-y-8 max-w-4xl">
       {/* Informational Header */}
-      <div className="p-4 bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-300 rounded-xl flex gap-3 border border-blue-200 dark:border-blue-800">
-        <SparklesIcon className="h-5 w-5 mt-0.5 shrink-0 text-blue-600 dark:text-blue-400" />
+      <div className="p-4 bg-[#13B1A5]/10 dark:bg-[#13B1A5]/20 text-foreground rounded-xl flex gap-3 border border-[#13B1A5]/30">
+        <SparklesIcon className="h-5 w-5 mt-0.5 shrink-0 text-[#13B1A5]" />
         <div className="text-sm space-y-1">
           <p className="font-semibold">NFC Card Programming Center</p>
-          <p className="text-xs text-blue-800 dark:text-blue-300/90 leading-relaxed">
+          <p className="text-xs text-muted-foreground leading-relaxed">
             Program your physical NFC card with your digital business card profile. When anyone taps your card, their phone opens your full profile with photo, contact saving, WhatsApp, and social links.
           </p>
         </div>

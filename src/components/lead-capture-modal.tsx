@@ -266,8 +266,8 @@ export function LeadCaptureModal({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-2xl bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-zinc-950 font-semibold text-sm shadow-md transition-all active:scale-[0.98] touch-manipulation cursor-pointer border border-zinc-700/30 dark:border-zinc-300/30">
-        <MessageSquarePlusIcon className="w-4 h-4 text-blue-400 dark:text-blue-600" />
+      <DialogTrigger className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-2xl bg-[#0A1934] hover:bg-[#0E2A4D] dark:bg-[#0A1934] dark:hover:bg-[#0E2A4D] text-white font-bold text-sm shadow-md shadow-[#0A1934]/25 transition-all active:scale-[0.98] touch-manipulation cursor-pointer border border-[#13B1A5]/40">
+        <MessageSquarePlusIcon className="w-4 h-4 text-[#13B1A5]" />
         <span>Connect &amp; Send Enquiry</span>
       </DialogTrigger>
 
@@ -329,10 +329,10 @@ export function LeadCaptureModal({
             />
 
             {/* SCAN BUSINESS CARD ACTION CARD */}
-            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 border border-blue-200/60 dark:border-blue-900/60 space-y-3">
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-[#13B1A5]/10 to-[#0A1934]/5 dark:from-[#13B1A5]/20 dark:to-[#0A1934]/30 border border-[#13B1A5]/30 space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                  <div className="w-8 h-8 rounded-xl bg-[#13B1A5] text-white flex items-center justify-center shadow-xs shrink-0">
                     <ScanTextIcon className="w-4 h-4" />
                   </div>
                   <div>
@@ -359,7 +359,7 @@ export function LeadCaptureModal({
                     size="sm"
                     disabled={isScanning}
                     onClick={() => fileInputRef.current?.click()}
-                    className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 px-3 rounded-xl shadow-xs cursor-pointer"
+                    className="bg-[#13B1A5] hover:bg-[#109F94] text-white text-xs h-8 px-3 rounded-xl shadow-xs cursor-pointer font-semibold"
                   >
                     {isScanning ? (
                       <>
@@ -379,16 +379,16 @@ export function LeadCaptureModal({
               {/* Live Scanning Progress Bar */}
               {isScanning && (
                 <div className="space-y-2 pt-1">
-                  <div className="flex items-center justify-between text-[11px] font-medium text-blue-700 dark:text-blue-300">
+                  <div className="flex items-center justify-between text-[11px] font-medium text-[#0F8A80] dark:text-[#18C8BB]">
                     <span className="flex items-center gap-1.5">
                       <SparklesIcon className="w-3 h-3 animate-spin" />
                       Analyzing card design & details...
                     </span>
                     <span>{scanProgress}%</span>
                   </div>
-                  <div className="w-full bg-blue-200 dark:bg-blue-900/60 rounded-full h-1.5 overflow-hidden">
+                  <div className="w-full bg-[#13B1A5]/20 dark:bg-[#13B1A5]/30 rounded-full h-1.5 overflow-hidden">
                     <div
-                      className="bg-blue-600 h-1.5 transition-all duration-200 rounded-full"
+                      className="bg-[#13B1A5] h-1.5 transition-all duration-200 rounded-full"
                       style={{ width: `${scanProgress}%` }}
                     />
                   </div>
@@ -565,7 +565,7 @@ export function LeadCaptureModal({
                     {detectedEmails.length > 1 && (
                       <div className="pt-1 space-y-1">
                         <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
-                          <MailIcon className="w-3 h-3 text-indigo-500" />
+                          <MailIcon className="w-3 h-3 text-[#13B1A5]" />
                           {detectedEmails.length} emails detected (tap to select):
                         </span>
                         <div className="flex flex-wrap gap-1">
@@ -576,7 +576,7 @@ export function LeadCaptureModal({
                               onClick={() => setEmail(em)}
                               className={`text-[10px] px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
                                 email === em
-                                  ? 'bg-indigo-600 text-white border-indigo-600 font-semibold shadow-xs'
+                                  ? 'bg-[#13B1A5] text-white border-[#13B1A5] font-semibold shadow-xs'
                                   : 'bg-muted/70 text-foreground hover:bg-muted border-border'
                               }`}
                             >
@@ -609,7 +609,7 @@ export function LeadCaptureModal({
                 <Button
                   type="submit"
                   disabled={isSubmitting || isScanning}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl shadow-md cursor-pointer"
+                  className="w-full bg-[#13B1A5] hover:bg-[#109F94] text-white font-bold py-2.5 rounded-xl shadow-md shadow-[#13B1A5]/25 cursor-pointer transition-all"
                 >
                   {isSubmitting ? (
                     <>

@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 
 export async function saveProfile(formData: FormData) {
   const supabase = await createClient()
@@ -54,6 +54,8 @@ export async function saveProfile(formData: FormData) {
 
   revalidatePath('/dashboard/profiles')
   revalidatePath('/dashboard/cards')
+  revalidatePath('/c', 'layout')
+  revalidateTag('cards', 'max')
   return { success: true }
 }
 
@@ -71,5 +73,7 @@ export async function deleteProfile(id: string) {
 
   revalidatePath('/dashboard/profiles')
   revalidatePath('/dashboard/cards')
+  revalidatePath('/c', 'layout')
+  revalidateTag('cards', 'max')
   return { success: true }
 }

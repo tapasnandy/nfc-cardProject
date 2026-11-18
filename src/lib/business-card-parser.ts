@@ -245,7 +245,7 @@ export function parseBusinessCardText(
   if (foundWebsites.length > 0) {
     try {
       const hostPart = new URL(foundWebsites[0]).hostname.replace(/^www\./, '').split('.')[0]
-      if (hostPart && hostPart.length >= 3 && !['linktr', 'bio', 'tapnet'].includes(hostPart)) {
+      if (hostPart && hostPart.length >= 3 && !['linktr', 'bio', 'tapnet', 'tapqori'].includes(hostPart)) {
         corporateKeywords.push(hostPart.toLowerCase())
       }
     } catch {

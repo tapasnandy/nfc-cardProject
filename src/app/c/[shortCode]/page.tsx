@@ -1,21 +1,22 @@
-import { createClient } from '@/utils/supabase/server'
+import { createPublicClient } from '@/utils/supabase/public'
 import { notFound } from 'next/navigation'
-import { headers } from 'next/headers'
-import { connection } from 'next/server'
+import { cacheLife, cacheTag } from 'next/cache'
 import { DigitalBusinessCard } from '@/components/digital-business-card'
+import { TapAnalyticsTracker } from '@/components/tap-analytics-tracker'
 
 export const instant = false
 
-export default async function PublicProfilePage({
-  params,
-}: {
-  params: Promise<{ shortCode: string }>
-}) {
-  await connection()
-  const { shortCode } = await params
-  const supabase = await createClient()
+/**
+ * Cached data fetcher for public card profiles using Next.js 16 Cache Components.
+ * Keeps public card profiles cached in memory for sub-50ms responses.
+ */
+async function getCardByShortCode(shortCode: string) {
+  'use cache'
+  cacheLife('minutes')
+  cacheTag(`card-${shortCode}`, 'cards')
 
-  // Find the card and associated profile
+  const supabase = createPublicClient()
+
   const { data: card } = await supabase
     .from('cards')
     .select(`
@@ -28,6 +29,17 @@ export default async function PublicProfilePage({
     `)
     .eq('short_code', shortCode)
     .single()
+
+  return card
+}
+
+export default async function PublicProfilePage({
+  params,
+}: {
+  params: Promise<{ shortCode: string }>
+}) {
+  const { shortCode } = await params
+  const card = await getCardByShortCode(shortCode)
 
   if (!card) {
     notFound()
@@ -45,7 +57,7 @@ export default async function PublicProfilePage({
   }
 
   const profile = Array.isArray(card.profiles) ? card.profiles[0] : card.profiles
-  
+
   if (!profile) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-muted/30">
@@ -57,28 +69,9 @@ export default async function PublicProfilePage({
     )
   }
 
-  // Analytics event recording
-  try {
-    const headersList = await headers()
-    const userAgent = headersList.get('user-agent') || 'Unknown'
-    
-    // Simple device detection
-    let deviceType = 'Desktop'
-    if (/mobile/i.test(userAgent)) deviceType = 'Mobile'
-    if (/tablet/i.test(userAgent)) deviceType = 'Tablet'
-
-    await supabase.from('analytics_events').insert({
-      card_id: card.id,
-      event_type: 'tap',
-      device_type: deviceType,
-      user_agent: userAgent.substring(0, 255)
-    })
-  } catch (e) {
-    console.error('Failed to log analytics:', e)
-  }
-
   return (
     <div className="min-h-screen bg-zinc-100/70 dark:bg-zinc-950 sm:py-8 sm:px-4 flex items-start justify-center font-sans">
+      <TapAnalyticsTracker cardId={card.id} />
       <DigitalBusinessCard
         profile={profile}
         shortCode={shortCode}

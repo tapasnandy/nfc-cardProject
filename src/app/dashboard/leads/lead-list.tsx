@@ -46,7 +46,7 @@ interface LeadListProps {
 }
 
 const statusBadgeVariants: Record<string, { label: string; className: string }> = {
-  new: { label: 'New Lead', className: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border-blue-200' },
+  new: { label: 'New Lead', className: 'bg-[#13B1A5]/15 text-[#0F8A80] dark:bg-[#13B1A5]/25 dark:text-[#18C8BB] border-[#13B1A5]/30' },
   contacted: { label: 'Contacted', className: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-200' },
   qualified: { label: 'Qualified', className: 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border-purple-200' },
   closed: { label: 'Closed / Won', className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200' },
@@ -282,7 +282,7 @@ export function LeadList({ initialLeads, cards, profiles }: LeadListProps) {
           <button
             type="button"
             onClick={() => setSearchTerm('')}
-            className="text-blue-600 hover:underline cursor-pointer"
+            className="text-[#0F8A80] dark:text-[#18C8BB] hover:underline cursor-pointer"
           >
             Clear search
           </button>
@@ -381,7 +381,7 @@ export function LeadList({ initialLeads, cards, profiles }: LeadListProps) {
                   {callUrl && (
                     <a
                       href={callUrl}
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300 dark:hover:bg-blue-900/60 transition-colors border border-blue-200/60"
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-[#13B1A5]/10 text-[#0F8A80] hover:bg-[#13B1A5]/20 dark:bg-[#13B1A5]/25 dark:text-[#18C8BB] transition-colors border border-[#13B1A5]/30"
                     >
                       <PhoneCallIcon className="w-3.5 h-3.5" />
                       <span>Call {lead.phone}</span>

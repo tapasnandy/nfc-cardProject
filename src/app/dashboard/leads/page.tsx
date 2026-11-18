@@ -114,10 +114,10 @@ export default async function LeadsPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xs sm:text-sm font-medium">New Enquiries</CardTitle>
-            <ClockIcon className="h-4 w-4 text-blue-500" />
+            <ClockIcon className="h-4 w-4 text-[#13B1A5]" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{newLeads}</div>
+            <div className="text-2xl font-bold text-[#0F8A80] dark:text-[#18C8BB]">{newLeads}</div>
             <p className="text-xs text-muted-foreground">Awaiting follow-up</p>
           </CardContent>
         </Card>

@@ -5,7 +5,6 @@ import {
   ProfileContactData 
 } from '@/lib/contact-actions'
 import { SaveContactButton } from '@/app/c/[shortCode]/save-contact-button'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { 
   PhoneCallIcon, 
   MessageCircleIcon, 
@@ -59,7 +58,7 @@ export function DigitalBusinessCard({
     <div className="w-full max-w-md mx-auto bg-white dark:bg-zinc-900 sm:rounded-3xl shadow-xl overflow-hidden min-h-screen sm:min-h-0 border border-zinc-200 dark:border-zinc-800 transition-colors">
       
       {/* Decorative Banner Header */}
-      <div className="h-32 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-700 relative overflow-hidden">
+      <div className="h-32 bg-gradient-to-r from-[#0A1934] via-[#0E2A4D] to-[#13B1A5] relative overflow-hidden">
         <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]" />
         {previewMode && (
           <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-md text-white text-[10px] font-semibold tracking-wider uppercase px-2.5 py-1 rounded-full">
@@ -70,18 +69,34 @@ export function DigitalBusinessCard({
 
       <div className="px-5 sm:px-6 pb-8 pt-0 relative">
         
-        {/* Prominent Profile Photo / Avatar */}
+        {/* Prominent Profile Photo / Avatar with High-Priority Progressive Loading */}
         <div className="flex justify-center -mt-16 mb-4">
-          <Avatar className="h-32 w-32 rounded-full border-4 border-white dark:border-zinc-900 shadow-xl bg-zinc-100 dark:bg-zinc-800 ring-2 ring-black/5">
-            <AvatarImage 
-              src={profile.profile_photo || ''} 
-              alt={profile.name || 'Profile'} 
-              className="object-cover" 
-            />
-            <AvatarFallback className="text-3xl font-bold text-zinc-700 dark:text-zinc-200 bg-zinc-200 dark:bg-zinc-800">
+          <div className="relative h-32 w-32 rounded-full overflow-hidden border-4 border-white dark:border-zinc-900 shadow-xl bg-zinc-100 dark:bg-zinc-800 ring-2 ring-black/5 flex items-center justify-center">
+            {profile.profile_photo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={profile.profile_photo}
+                alt={profile.name || 'Profile'}
+                className="h-full w-full object-cover"
+                loading="eager"
+                decoding="async"
+                // @ts-expect-error fetchpriority is supported in modern browsers
+                fetchpriority="high"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none'
+                  const fallback = e.currentTarget.parentElement?.querySelector('.avatar-fallback-initials')
+                  if (fallback) fallback.classList.remove('hidden')
+                }}
+              />
+            ) : null}
+            <div
+              className={`avatar-fallback-initials ${
+                profile.profile_photo ? 'hidden' : ''
+              } flex h-full w-full items-center justify-center text-3xl font-bold text-zinc-700 dark:text-zinc-200 bg-zinc-200 dark:bg-zinc-800 select-none`}
+            >
               {initials}
-            </AvatarFallback>
-          </Avatar>
+            </div>
+          </div>
         </div>
 
         {/* Identity & Headline Block */}
@@ -91,7 +106,7 @@ export function DigitalBusinessCard({
           </h1>
           
           {(profile.job_title || profile.company) && (
-            <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+            <p className="text-sm font-semibold text-[#13B1A5] dark:text-[#18C8BB]">
               {profile.job_title}
               {profile.job_title && profile.company ? ' • ' : ''}
               {profile.company}
@@ -158,7 +173,7 @@ export function DigitalBusinessCard({
                   aria-label={`Visit ${profile.name}'s website`}
                   className="group flex flex-col items-center justify-center p-3 rounded-2xl bg-zinc-100 hover:bg-zinc-200/80 dark:bg-zinc-800 dark:hover:bg-zinc-750 text-zinc-900 dark:text-zinc-100 transition-all active:scale-[0.97] touch-manipulation border border-zinc-200/60 dark:border-zinc-700/60 shadow-sm"
                 >
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-indigo-600 text-white mb-1.5 shadow-sm shadow-indigo-500/20 group-hover:scale-105 transition-transform">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-[#13B1A5] text-white mb-1.5 shadow-sm shadow-[#13B1A5]/30 group-hover:scale-105 transition-transform">
                     <GlobeIcon className="w-5 h-5" />
                   </div>
                   <span className="text-xs font-semibold tracking-tight">Website</span>
@@ -197,7 +212,7 @@ export function DigitalBusinessCard({
               href={`mailto:${profile.email}`}
               className="flex items-center gap-3 p-3 rounded-xl bg-zinc-50 hover:bg-zinc-100/80 dark:bg-zinc-800/60 dark:hover:bg-zinc-800 border border-zinc-200/60 dark:border-zinc-700/40 text-zinc-900 dark:text-zinc-100 transition-colors"
             >
-              <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 shrink-0">
+              <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#13B1A5]/15 dark:bg-[#13B1A5]/25 text-[#0F8A80] dark:text-[#18C8BB] shrink-0">
                 <MailIcon className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
@@ -269,12 +284,15 @@ export function DigitalBusinessCard({
         </div>
 
         {/* Footer Brand */}
-        <div className="mt-8 text-center pb-2">
+        <div className="mt-8 text-center pb-2 flex justify-center">
           <Link 
             href="/" 
-            className="text-[10px] font-medium text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-300 uppercase tracking-widest transition-colors"
+            className="inline-flex items-center gap-1.5 text-[11px] font-medium text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200 transition-colors"
           >
-            Powered by TapNet NFC
+            <span className="text-[10px] uppercase tracking-wider">Powered by</span>
+            <span className="font-extrabold text-zinc-800 dark:text-zinc-200 text-xs tracking-tight">
+              tap<span className="text-[#13B1A5]">qori</span>
+            </span>
           </Link>
         </div>
 
