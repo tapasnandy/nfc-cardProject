@@ -1,7 +1,12 @@
+'use client'
+
 import { 
   getCallUrl, 
   getWhatsAppUrl, 
-  getSafeWebsiteUrl, 
+  getSafeWebsiteUrl,
+  getLinkedInUrl,
+  getInstagramUrl,
+  getFacebookUrl, 
   ProfileContactData 
 } from '@/lib/contact-actions'
 import { SaveContactButton } from '@/app/c/[shortCode]/save-contact-button'
@@ -246,7 +251,7 @@ export function DigitalBusinessCard({
               <div className="flex justify-center items-center gap-3">
                 {profile.linkedin && (
                   <a
-                    href={getSafeWebsiteUrl(profile.linkedin) || '#'}
+                    href={getLinkedInUrl(profile.linkedin) || '#'}
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="LinkedIn Profile"
@@ -257,7 +262,7 @@ export function DigitalBusinessCard({
                 )}
                 {profile.instagram && (
                   <a
-                    href={getSafeWebsiteUrl(profile.instagram) || '#'}
+                    href={getInstagramUrl(profile.instagram) || '#'}
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="Instagram Profile"
@@ -268,7 +273,7 @@ export function DigitalBusinessCard({
                 )}
                 {profile.facebook && (
                   <a
-                    href={getSafeWebsiteUrl(profile.facebook) || '#'}
+                    href={getFacebookUrl(profile.facebook) || '#'}
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="Facebook Profile"

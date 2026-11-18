@@ -60,7 +60,12 @@ export function getWhatsAppUrl(
   }
 
   // Strip all non-digit characters including '+'
-  const digitsOnly = sanitized.replace(/[^0-9]/g, '')
+  let digitsOnly = sanitized.replace(/[^0-9]/g, '')
+
+  // If local Bangladesh mobile number entered as 01XXXXXXXXX (11 digits starting with 01), auto-prepend 88
+  if (digitsOnly.length === 11 && digitsOnly.startsWith('01')) {
+    digitsOnly = `88${digitsOnly}`
+  }
 
   // Must have a valid international length (7 to 15 digits)
   if (digitsOnly.length < 7 || digitsOnly.length > 16) {
@@ -111,6 +116,46 @@ export function getSafeWebsiteUrl(website?: string | null): string | null {
   } catch {
     return null
   }
+}
+
+/**
+ * Normalizes LinkedIn input: accepts full URLs, @handles, or raw usernames.
+ */
+export function getLinkedInUrl(val?: string | null): string | null {
+  if (!val || typeof val !== 'string') return null
+  const trimmed = val.trim().replace(/^@/, '')
+  if (!trimmed) return null
+  if (trimmed.includes('linkedin.com')) {
+    return getSafeWebsiteUrl(trimmed)
+  }
+  const cleanHandle = trimmed.replace(/^in\//, '').replace(/^\/+/, '')
+  return `https://www.linkedin.com/in/${cleanHandle}`
+}
+
+/**
+ * Normalizes Instagram input: accepts full URLs, @handles, or raw usernames.
+ */
+export function getInstagramUrl(val?: string | null): string | null {
+  if (!val || typeof val !== 'string') return null
+  const trimmed = val.trim().replace(/^@/, '')
+  if (!trimmed) return null
+  if (trimmed.includes('instagram.com')) {
+    return getSafeWebsiteUrl(trimmed)
+  }
+  return `https://www.instagram.com/${trimmed}`
+}
+
+/**
+ * Normalizes Facebook input: accepts full URLs, @handles, or raw usernames.
+ */
+export function getFacebookUrl(val?: string | null): string | null {
+  if (!val || typeof val !== 'string') return null
+  const trimmed = val.trim().replace(/^@/, '')
+  if (!trimmed) return null
+  if (trimmed.includes('facebook.com')) {
+    return getSafeWebsiteUrl(trimmed)
+  }
+  return `https://www.facebook.com/${trimmed}`
 }
 
 /**
