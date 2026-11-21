@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { connection } from 'next/server'
 import { WriterInstructions } from './writer-instructions'
 
-export const instant = false
+export const dynamic = 'force-dynamic'
 
 export default async function NFCWriterPage() {
   await connection();

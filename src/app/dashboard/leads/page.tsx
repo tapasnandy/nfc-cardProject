@@ -5,7 +5,7 @@ import { connection } from 'next/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { UserCheck2Icon, ClockIcon, CheckCircle2Icon, TrendingUpIcon } from 'lucide-react'
 
-export const instant = false
+export const dynamic = 'force-dynamic'
 
 export default async function LeadsPage() {
   await connection()

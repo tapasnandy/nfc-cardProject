@@ -3,7 +3,7 @@ import { createClient } from '@/utils/supabase/server'
 import { CardList } from './card-list'
 import { connection } from 'next/server'
 
-export const instant = false
+export const dynamic = 'force-dynamic'
 
 export default async function CardsPage() {
   await connection();

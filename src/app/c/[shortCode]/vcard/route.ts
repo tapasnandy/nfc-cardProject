@@ -2,7 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { connection } from 'next/server'
 import { generateVCardWithPhoto } from '@/lib/contact-actions'
 
-export const instant = false
+export const dynamic = 'force-dynamic'
 
 export async function GET(
   request: Request,

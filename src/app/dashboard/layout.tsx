@@ -7,7 +7,7 @@ import { connection } from 'next/server'
 import { DashboardMobileNav } from '@/components/dashboard-mobile-nav'
 import { BrandLogo } from '@/components/brand-logo'
 
-export const instant = false
+export const dynamic = 'force-dynamic'
 
 export default async function DashboardLayout({
   children,

@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { PlusIcon, UserIcon, EditIcon } from 'lucide-react'
 import { DeleteProfileButton } from './delete-button'
 
-export const instant = false
+export const dynamic = 'force-dynamic'
 
 export default async function ProfilesListPage() {
   await connection()

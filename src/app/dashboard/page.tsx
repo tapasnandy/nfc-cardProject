@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 
-export const instant = false
+export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
   await connection()

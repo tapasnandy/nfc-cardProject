@@ -1,20 +1,15 @@
 import { createPublicClient } from '@/utils/supabase/public'
 import { notFound } from 'next/navigation'
-import { cacheLife, cacheTag } from 'next/cache'
 import { DigitalBusinessCard } from '@/components/digital-business-card'
 import { TapAnalyticsTracker } from '@/components/tap-analytics-tracker'
 
-export const instant = false
+export const dynamic = 'force-dynamic'
 
 /**
- * Cached data fetcher for public card profiles using Next.js 16 Cache Components.
- * Keeps public card profiles cached in memory for sub-50ms responses.
+ * Fetcher for public card profiles.
+ * Queries Supabase edge database directly for ultra-fast global responses.
  */
 async function getCardByShortCode(shortCode: string) {
-  'use cache'
-  cacheLife('minutes')
-  cacheTag(`card-${shortCode}`, 'cards')
-
   const supabase = createPublicClient()
 
   const { data: card } = await supabase

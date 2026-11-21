@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { connection } from 'next/server'
 import { BrandLogo } from '@/components/brand-logo'
 
-export const instant = false
+export const dynamic = 'force-dynamic'
 
 export default async function LoginPage({
   searchParams,
