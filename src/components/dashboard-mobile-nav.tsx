@@ -10,11 +10,9 @@ import {
   RadioIcon, 
   MenuIcon, 
   XIcon,
-  LogOutIcon,
   UserCheckIcon
 } from 'lucide-react'
-import { signout } from '@/app/auth/actions'
-import { Button } from '@/components/ui/button'
+import { SignOutButton } from '@/components/sign-out-button'
 
 const navItems = [
   { label: 'Overview', href: '/dashboard', icon: LayoutDashboardIcon },
@@ -73,12 +71,10 @@ export function DashboardMobileNav({ userEmail }: { userEmail?: string }) {
               <span className="text-xs text-muted-foreground truncate max-w-[180px]">
                 {userEmail}
               </span>
-              <form action={signout}>
-                <Button variant="ghost" size="sm" className="text-xs text-destructive hover:text-destructive flex items-center gap-1.5 h-8 px-2.5">
-                  <LogOutIcon className="h-3.5 w-3.5" />
-                  <span>Sign out</span>
-                </Button>
-              </form>
+              <SignOutButton
+                variant="ghost"
+                className="text-xs text-destructive hover:text-destructive flex items-center h-8 px-2.5"
+              />
             </div>
           </div>
         </div>

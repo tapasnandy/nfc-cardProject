@@ -1,6 +1,5 @@
 import { requireOrganization } from '@/utils/auth-helpers'
 import { ProfileForm } from '../profile-form'
-import { connection } from 'next/server'
 import { buttonVariants } from '@/components/ui/button'
 import Link from 'next/link'
 import { ChevronLeftIcon } from 'lucide-react'
@@ -8,7 +7,6 @@ import { ChevronLeftIcon } from 'lucide-react'
 export const dynamic = 'force-dynamic'
 
 export default async function NewProfilePage() {
-  await connection();
   const { organization } = await requireOrganization()
 
   return (

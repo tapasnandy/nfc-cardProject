@@ -1,13 +1,11 @@
 import { requireOrganization } from '@/utils/auth-helpers'
 import { createClient } from '@/utils/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { connection } from 'next/server'
 import { WriterInstructions } from './writer-instructions'
 
 export const dynamic = 'force-dynamic'
 
 export default async function NFCWriterPage() {
-  await connection();
   const { organization } = await requireOrganization()
   const supabase = await createClient()
 

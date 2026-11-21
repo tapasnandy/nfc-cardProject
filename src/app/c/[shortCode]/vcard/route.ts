@@ -1,5 +1,4 @@
 import { createClient } from '@/utils/supabase/server'
-import { connection } from 'next/server'
 import { generateVCardWithPhoto } from '@/lib/contact-actions'
 
 export const dynamic = 'force-dynamic'
@@ -8,7 +7,6 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ shortCode: string }> }
 ) {
-  await connection()
   const { shortCode } = await params
   const supabase = await createClient()
 

@@ -1,11 +1,9 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
-import { signout } from '@/app/auth/actions'
-import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { connection } from 'next/server'
 import { DashboardMobileNav } from '@/components/dashboard-mobile-nav'
 import { BrandLogo } from '@/components/brand-logo'
+import { SignOutButton } from '@/components/sign-out-button'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +12,6 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  await connection()
   const supabase = await createClient()
 
   const {
@@ -75,15 +72,9 @@ export default async function DashboardLayout({
           <span className="hidden sm:inline-block text-xs md:text-sm text-muted-foreground truncate max-w-[140px] md:max-w-[200px]">
             {user.email}
           </span>
-          <form action={signout} className="hidden sm:block">
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs h-8 rounded-lg hover:border-[#13b1a5]/50 hover:text-[#13b1a5] transition-colors"
-            >
-              Sign out
-            </Button>
-          </form>
+          <div className="hidden sm:block">
+            <SignOutButton className="text-xs h-8 rounded-lg hover:border-[#13b1a5]/50 hover:text-[#13b1a5] transition-colors" />
+          </div>
         </div>
       </header>
 

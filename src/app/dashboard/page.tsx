@@ -1,5 +1,4 @@
 import { createClient } from '@/utils/supabase/server'
-import { connection } from 'next/server'
 import { requireOrganization } from '@/utils/auth-helpers'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -19,7 +18,6 @@ import Link from 'next/link'
 export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
-  await connection()
   const supabase = await createClient()
   const { organization } = await requireOrganization()
 

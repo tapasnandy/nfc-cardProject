@@ -1,7 +1,6 @@
 import { requireOrganization } from '@/utils/auth-helpers'
 import { createClient } from '@/utils/supabase/server'
 import { ProfileForm } from '../profile-form'
-import { connection } from 'next/server'
 import { notFound } from 'next/navigation'
 import { buttonVariants } from '@/components/ui/button'
 import Link from 'next/link'
@@ -10,7 +9,6 @@ import { ChevronLeftIcon } from 'lucide-react'
 export const dynamic = 'force-dynamic'
 
 export default async function EditProfilePage({ params }: { params: Promise<{ id: string }> }) {
-  await connection();
   const { id } = await params
   const { organization } = await requireOrganization()
   const supabase = await createClient()

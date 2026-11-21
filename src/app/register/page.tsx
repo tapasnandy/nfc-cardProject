@@ -1,20 +1,52 @@
-import { signup } from '@/app/auth/actions'
+'use client'
+
+import { useState } from 'react'
+import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import Link from 'next/link'
-import { connection } from 'next/server'
 import { BrandLogo } from '@/components/brand-logo'
+import { Loader2Icon } from 'lucide-react'
 
-export const dynamic = 'force-dynamic'
+export default function RegisterPage() {
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-export default async function RegisterPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>
-}) {
-  await connection()
-  const params = await searchParams
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+
+    try {
+      const supabase = createClient()
+      const { error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: name,
+          },
+        },
+      })
+
+      if (signUpError) {
+        setError(signUpError.message)
+        setLoading(false)
+        return
+      }
+
+      // Hard navigation ensures server components pick up the new session cookies cleanly
+      window.location.href = '/dashboard'
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to register. Please try again.'
+      setError(msg)
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4 bg-muted/20">
@@ -27,20 +59,23 @@ export default async function RegisterPage({
           </div>
         </div>
 
-        {params?.error && (
+        {error && (
           <div className="p-3 text-xs sm:text-sm text-rose-600 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl">
-            {params.error}
+            {error}
           </div>
         )}
 
-        <form action={signup} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="name" className="text-xs font-semibold">Full Name</Label>
             <Input
               id="name"
               name="name"
               placeholder="e.g. John Doe"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               required
+              disabled={loading}
               className="h-10 text-sm rounded-xl"
             />
           </div>
@@ -51,7 +86,10 @@ export default async function RegisterPage({
               name="email"
               type="email"
               placeholder="you@company.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
+              disabled={loading}
               className="h-10 text-sm rounded-xl"
             />
           </div>
@@ -62,16 +100,27 @@ export default async function RegisterPage({
               name="password"
               type="password"
               placeholder="At least 6 characters"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
+              disabled={loading}
               className="h-10 text-sm rounded-xl"
             />
           </div>
           <Button
             type="submit"
+            disabled={loading}
             className="w-full h-11 text-sm font-bold bg-[#13B1A5] hover:bg-[#109F94] text-white rounded-xl shadow-sm shadow-[#13B1A5]/25 transition-all cursor-pointer"
           >
-            Create Free Account
+            {loading ? (
+              <span className="flex items-center gap-2">
+                <Loader2Icon className="w-4 h-4 animate-spin" />
+                Creating account...
+              </span>
+            ) : (
+              'Create Free Account'
+            )}
           </Button>
         </form>
 

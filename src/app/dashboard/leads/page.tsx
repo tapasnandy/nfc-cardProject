@@ -1,14 +1,12 @@
 import { requireOrganization } from '@/utils/auth-helpers'
 import { createClient } from '@/utils/supabase/server'
 import { LeadList, LeadItem } from './lead-list'
-import { connection } from 'next/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { UserCheck2Icon, ClockIcon, CheckCircle2Icon, TrendingUpIcon } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
 export default async function LeadsPage() {
-  await connection()
   const { organization } = await requireOrganization()
   const supabase = await createClient()
 

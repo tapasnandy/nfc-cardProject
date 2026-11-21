@@ -1,6 +1,5 @@
 import { requireOrganization } from '@/utils/auth-helpers'
 import { createClient } from '@/utils/supabase/server'
-import { connection } from 'next/server'
 import Link from 'next/link'
 import { buttonVariants } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -11,7 +10,6 @@ import { DeleteProfileButton } from './delete-button'
 export const dynamic = 'force-dynamic'
 
 export default async function ProfilesListPage() {
-  await connection()
   const { organization } = await requireOrganization()
   const supabase = await createClient()
 

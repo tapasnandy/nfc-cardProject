@@ -1,12 +1,10 @@
 import { requireOrganization } from '@/utils/auth-helpers'
 import { createClient } from '@/utils/supabase/server'
 import { CardList } from './card-list'
-import { connection } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
 export default async function CardsPage() {
-  await connection();
   const { organization } = await requireOrganization()
   const supabase = await createClient()
 
