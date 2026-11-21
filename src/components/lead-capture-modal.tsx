@@ -122,8 +122,18 @@ export function LeadCaptureModal({
             if (d.name) setName(d.name)
             if (d.jobTitle) setJobTitle(d.jobTitle)
             if (d.company) setCompany(d.company)
-            if (d.phone) setPhone(d.phone)
-            if (d.email) setEmail(d.email)
+            if (d.phone) {
+              setPhone(d.phone)
+              setDetectedPhones([{ number: d.phone, label: 'mobile', formattedLabel: 'Mobile' }])
+            }
+            if (d.email) {
+              setEmail(d.email)
+              setDetectedEmails([d.email])
+            }
+
+            setRawOcrText(
+              `[AI Vision Analysis]\nName: ${d.name || '-'}\nDesignation: ${d.jobTitle || '-'}\nCompany: ${d.company || '-'}\nPhone: ${d.phone || '-'}\nEmail: ${d.email || '-'}\nWebsite: ${d.website || '-'}\nAddress: ${d.address || '-'}`
+            )
 
             // Notes left completely empty as requested
             setNotes('')
@@ -131,6 +141,8 @@ export function LeadCaptureModal({
             setScanProgress(100)
             toast.success('Card details extracted with 100% accuracy via AI Vision!')
             return
+          } else {
+            console.warn('AI Vision did not succeed:', res?.error)
           }
         }
       } catch (aiErr: unknown) {

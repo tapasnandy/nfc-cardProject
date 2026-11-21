@@ -380,17 +380,54 @@ export function parseBusinessCardText(
 }
 
 /**
- * Clean Canvas Image Resizer
- * Scales mobile photos to optimal OCR size (max 1800px) with clean bilinear resampling.
- * Preserves true RGB font anti-aliasing and avoids destructive pixel distortion.
+ * High-Precision Canvas Image Resizer & EXIF Normalizer
+ * Scales mobile camera photos to optimal OCR size (max 1800px) with clean bilinear resampling.
+ * Automatically normalizes EXIF orientation on mobile browsers so camera photos aren't rotated sideways.
+ * Preserves crisp RGB font anti-aliasing for AI Vision reading.
  */
 export async function preprocessCardImage(file: File): Promise<string> {
+  // Use createImageBitmap with automatic EXIF orientation if available in browser
+  if (typeof window !== 'undefined' && typeof window.createImageBitmap === 'function') {
+    try {
+      const bitmap = await window.createImageBitmap(file, { imageOrientation: 'from-image' })
+      const MAX_DIM = 1800
+      let { width, height } = bitmap
+
+      if (width > MAX_DIM || height > MAX_DIM) {
+        if (width > height) {
+          height = Math.round((height * MAX_DIM) / width)
+          width = MAX_DIM
+        } else {
+          width = Math.round((width * MAX_DIM) / height)
+          height = MAX_DIM
+        }
+      }
+
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+
+      if (ctx) {
+        ctx.imageSmoothingEnabled = true
+        ctx.imageSmoothingQuality = 'high'
+        ctx.drawImage(bitmap, 0, 0, width, height)
+        bitmap.close()
+        return canvas.toDataURL('image/jpeg', 0.90)
+      }
+      bitmap.close()
+    } catch (bitmapErr) {
+      console.warn('createImageBitmap failed, falling back to standard Image loader:', bitmapErr)
+    }
+  }
+
+  // Standard Image loader fallback
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = (e) => {
       const img = new Image()
       img.onload = () => {
-        const MAX_DIM = 1200
+        const MAX_DIM = 1800
         let { width, height } = img
 
         if (width > MAX_DIM || height > MAX_DIM) {
@@ -418,7 +455,7 @@ export async function preprocessCardImage(file: File): Promise<string> {
         ctx.imageSmoothingQuality = 'high'
         ctx.drawImage(img, 0, 0, width, height)
 
-        resolve(canvas.toDataURL('image/jpeg', 0.82))
+        resolve(canvas.toDataURL('image/jpeg', 0.90))
       }
       img.onerror = () => reject(new Error('Failed to load card image'))
       img.src = e.target?.result as string

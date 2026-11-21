@@ -77,7 +77,7 @@ export default async function PublicProfilePage({
         shortCode={shortCode}
         cardId={card.id}
         organizationId={card.organization_id || profile.organization_id || undefined}
-        hasAiVision={!!process.env.GEMINI_API_KEY}
+        hasAiVision={true}
       />
     </div>
   )

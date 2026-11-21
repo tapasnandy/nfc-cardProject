@@ -12,13 +12,11 @@ export interface CardScanResult {
 }
 
 /**
- * Robust API Route Handler for Multimodal Business Card OCR & Classification.
- * Uses Google Gemini Vision via a fallback model cascade.
+ * Robust API Route Handler for Multimodal Business Card OCR & Entity Extraction.
+ * Uses Google Gemini Vision via a high-performance flash-lite model cascade.
  * 
- * Unlike Server Actions, this HTTP Route Handler:
- * 1. Runs outside React Server Component / Flight serialization (no minified React #441/#331 errors).
- * 2. Has no 1MB Server Action payload limit.
- * 3. Returns structured JSON with safe fallbacks and timeouts.
+ * Runs outside React Server Component Flight serialization to eliminate 
+ * any minified React #441 / #331 errors and payload restrictions.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -42,30 +40,45 @@ export async function POST(req: NextRequest) {
 
     const apiKey = (customApiKey || '').trim() || process.env.GEMINI_API_KEY
 
-    if (!apiKey) {
-      return NextResponse.json({
-        success: false,
-        useClientOCR: true,
-        error: 'No Gemini API key configured',
-      })
-    }
-
     // Clean base64 data URL prefix
     const cleanBase64 = image.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '')
+    if (!cleanBase64) {
+      return NextResponse.json(
+        { success: false, error: 'Empty image payload', useClientOCR: true },
+        { status: 400 }
+      )
+    }
 
-    // Model cascade for high availability
+    // High-performance models: prioritize ultra-fast flash-lite models for sub-2s responses
     const candidateModels = [
       'gemini-3.5-flash-lite',
-      'gemini-flash-latest',
+      'gemini-flash-lite-latest',
       'gemini-3.5-flash',
     ]
+
+    const promptText = `You are an expert AI business card reader and entity classifier.
+Analyze this business card image with meticulous accuracy.
+The card photo may be captured from any angle, rotated, or under varying lighting.
+
+Accurately detect and extract the following 7 fields:
+1. "name": The full name of the individual person (e.g., "Dr. Robert Smith", "Tanvir Ahmed", "Sarah Jenkins"). Look for personal titles (Mr., Ms., Dr., Engr., Advocate). Distinguish this clearly from the company or organization name.
+2. "jobTitle": The professional designation or title (e.g., "Managing Director", "Chief Technology Officer", "Senior Consultant", "Founder & CEO", "Architect", "Sales Executive").
+3. "company": The firm, business, hospital, university, or brand name (e.g., "Apex Group", "Acme Corp").
+4. "phone": The primary mobile or phone number. Include international country code if visible or standard. Extract digits and clean separators.
+5. "email": The clean, valid email address (containing @ and domain).
+6. "website": Clean website URL (e.g., "https://example.com" or "www.example.com").
+7. "address": The physical business address, office location, chamber, or clinic address.
+
+Return STRICTLY a JSON object with these 7 keys: "name", "jobTitle", "company", "phone", "email", "website", "address".
+If any field is not found on the card, set its value to "".
+Do not wrap in extra explanation, markdown commentary, or backticks outside the JSON object.`
 
     for (const modelName of candidateModels) {
       try {
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`
 
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 12000) // 12-second timeout per attempt
+        const timeoutId = setTimeout(() => controller.abort(), 15000) // 15-second timeout per attempt
 
         const response = await fetch(endpoint, {
           method: 'POST',
@@ -75,22 +88,7 @@ export async function POST(req: NextRequest) {
             contents: [
               {
                 parts: [
-                  {
-                    text: `You are an expert AI business card reader and entity classifier.
-Analyze this business card image with meticulous accuracy.
-Identify and extract:
-1. "name": The full name of the individual (person). Distinguish this from company name or slogans.
-2. "jobTitle": The job title, profession, or designation (e.g., "Senior Architect", "Managing Director", "Consultant", "Doctor", "Founder").
-3. "company": The company, firm, brand, or organization name.
-4. "phone": The primary mobile / telephone number including international country code (+...) if shown.
-5. "email": The clean, valid email address.
-6. "website": Clean website URL if present.
-7. "address": The business/office/clinic physical address if present.
-
-Return STRICTLY a valid JSON object with those 7 keys.
-If any field is missing on the card, set its value to "".
-Do NOT include markdown formatting, codeblocks, or extra text.`,
-                  },
+                  { text: promptText },
                   {
                     inlineData: {
                       mimeType: 'image/jpeg',
@@ -120,16 +118,22 @@ Do NOT include markdown formatting, codeblocks, or extra text.`,
           continue
         }
 
-        const parsed = JSON.parse(contentText)
+        // Clean any accidental markdown code fences
+        const cleanJson = contentText
+          .replace(/^```(?:json)?\s*/i, '')
+          .replace(/```\s*$/i, '')
+          .trim()
+
+        const parsed = JSON.parse(cleanJson)
 
         const result: CardScanResult = {
-          name: typeof parsed.name === 'string' ? parsed.name.trim() : '',
-          jobTitle: typeof parsed.jobTitle === 'string' ? parsed.jobTitle.trim() : '',
-          company: typeof parsed.company === 'string' ? parsed.company.trim() : '',
-          phone: typeof parsed.phone === 'string' ? parsed.phone.trim() : '',
-          email: typeof parsed.email === 'string' ? parsed.email.trim() : '',
-          website: typeof parsed.website === 'string' ? parsed.website.trim() : '',
-          address: typeof parsed.address === 'string' ? parsed.address.trim() : '',
+          name: typeof parsed.name === 'string' ? parsed.name.trim() : (parsed.name ? String(parsed.name) : ''),
+          jobTitle: typeof parsed.jobTitle === 'string' ? parsed.jobTitle.trim() : (parsed.jobTitle ? String(parsed.jobTitle) : ''),
+          company: typeof parsed.company === 'string' ? parsed.company.trim() : (parsed.company ? String(parsed.company) : ''),
+          phone: typeof parsed.phone === 'string' ? parsed.phone.trim() : (parsed.phone ? String(parsed.phone) : ''),
+          email: typeof parsed.email === 'string' ? parsed.email.trim() : (parsed.email ? String(parsed.email) : ''),
+          website: typeof parsed.website === 'string' ? parsed.website.trim() : (parsed.website ? String(parsed.website) : ''),
+          address: typeof parsed.address === 'string' ? parsed.address.trim() : (parsed.address ? String(parsed.address) : ''),
           source: 'ai_vision',
         }
 
@@ -153,7 +157,7 @@ Do NOT include markdown formatting, codeblocks, or extra text.`,
     return NextResponse.json({
       success: false,
       useClientOCR: true,
-      error: 'An error occurred while processing the card. Falling back to on-device OCR.',
-    })
+      error: 'Card scanning failed',
+    }, { status: 500 })
   }
 }
