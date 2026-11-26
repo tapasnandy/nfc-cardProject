@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getCloudflareContext } from '@opennextjs/cloudflare'
 
 export interface CardScanResult {
   name: string
@@ -39,24 +38,13 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    let cfGeminiKey = ''
-    try {
-      const ctx = await getCloudflareContext({ async: true })
-      const envObj = ctx?.env as Record<string, unknown> | undefined
-      if (typeof envObj?.GEMINI_API_KEY === 'string') {
-        cfGeminiKey = envObj.GEMINI_API_KEY.trim()
-      }
-    } catch {
-      // Not running inside Cloudflare Workers context (e.g., local next dev)
-    }
-
-    const apiKey = (customApiKey || '').trim() || cfGeminiKey || (process.env.GEMINI_API_KEY || '').trim()
+    const apiKey = (customApiKey || '').trim() || process.env.GEMINI_API_KEY
 
     if (!apiKey) {
       return NextResponse.json({
         success: false,
         useClientOCR: true,
-        error: 'GEMINI_API_KEY is not set in Cloudflare Runtime Variables & Secrets or process.env.',
+        error: 'GEMINI_API_KEY is not set in server runtime environment variables.',
       })
     }
 
