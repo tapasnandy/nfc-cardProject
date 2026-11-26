@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getCloudflareContext } from '@opennextjs/cloudflare'
 
 export interface CardScanResult {
   name: string
@@ -38,17 +39,30 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const apiKey = (customApiKey || '').trim() || process.env.GEMINI_API_KEY
+    let cfGeminiKey = ''
+    try {
+      const ctx = await getCloudflareContext({ async: true })
+      const envObj = ctx?.env as Record<string, unknown> | undefined
+      if (typeof envObj?.GEMINI_API_KEY === 'string') {
+        cfGeminiKey = envObj.GEMINI_API_KEY.trim()
+      }
+    } catch {
+      // Running outside Cloudflare Workers context (e.g., local next dev)
+    }
+
+    const apiKey = (customApiKey || '').trim() || cfGeminiKey || (process.env.GEMINI_API_KEY || '').trim()
 
     if (!apiKey) {
       return NextResponse.json({
         success: false,
         useClientOCR: true,
-        error: 'GEMINI_API_KEY is not set in server runtime environment variables.',
+        error: 'GEMINI_API_KEY is not set in Cloudflare Runtime Variables & Secrets or process.env.',
       })
     }
 
-    // Clean base64 data URL prefix
+    // Extract mimeType and clean base64 data URL prefix
+    const mimeMatch = image.match(/^data:(image\/[a-zA-Z0-9+.-]+);base64,/)
+    const mimeType = mimeMatch?.[1] || 'image/jpeg'
     const cleanBase64 = image.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '')
     if (!cleanBase64) {
       return NextResponse.json(
@@ -61,7 +75,6 @@ export async function POST(req: NextRequest) {
     const candidateModels = [
       'gemini-3.5-flash-lite',
       'gemini-flash-lite-latest',
-      'gemini-3.5-flash',
       'gemini-3.8-flash',
     ]
 
@@ -89,7 +102,7 @@ Do not wrap in extra explanation, markdown commentary, or backticks outside the 
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`
 
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 15000) // 15-second timeout per attempt
+        const timeoutId = setTimeout(() => controller.abort(), 12000) // 12-second timeout per attempt
 
         const response = await fetch(endpoint, {
           method: 'POST',
@@ -102,7 +115,7 @@ Do not wrap in extra explanation, markdown commentary, or backticks outside the 
                   { text: promptText },
                   {
                     inlineData: {
-                      mimeType: 'image/jpeg',
+                      mimeType,
                       data: cleanBase64,
                     },
                   },

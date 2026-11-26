@@ -201,7 +201,11 @@ export function LeadCaptureModal({
       setNotes('')
 
       setScanComplete(true)
-      toast.success('Card scanned! Details extracted for verification.')
+      if (aiFallbackReason) {
+        toast.warning(`AI Vision unavailable (${aiFallbackReason}). Extracted using offline OCR.`)
+      } else {
+        toast.success('Card scanned! Details extracted for verification.')
+      }
     } catch (err: unknown) {
       console.error('OCR Card Scan error:', err)
       let msg = err instanceof Error ? err.message : 'Could not scan card photo'
