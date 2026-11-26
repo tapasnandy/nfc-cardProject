@@ -105,6 +105,7 @@ export function LeadCaptureModal({
       setScanProgress(30)
 
       // 2. Try zero-error AI Vision via /api/scan-card Route Handler
+      let aiFallbackReason = ''
       try {
         const response = await fetch('/api/scan-card', {
           method: 'POST',
@@ -139,13 +140,17 @@ export function LeadCaptureModal({
             setNotes('')
             setScanComplete(true)
             setScanProgress(100)
-            toast.success('Card details extracted with 100% accuracy via AI Vision!')
+            toast.success('Card details extracted accurately via AI Vision!')
             return
           } else {
-            console.warn('AI Vision did not succeed:', res?.error)
+            aiFallbackReason = res?.error || 'AI Vision returned no data'
+            console.warn('AI Vision did not succeed:', aiFallbackReason)
           }
+        } else {
+          aiFallbackReason = `HTTP ${response.status}`
         }
       } catch (aiErr: unknown) {
+        aiFallbackReason = aiErr instanceof Error ? aiErr.message : 'Network error'
         console.warn('AI Vision API call failed, falling back to on-device OCR:', aiErr)
       }
 
@@ -162,7 +167,11 @@ export function LeadCaptureModal({
       })
 
       const rawText = result.data.text || ''
-      setRawOcrText(rawText)
+      setRawOcrText(
+        aiFallbackReason
+          ? `[AI Vision Fallback: ${aiFallbackReason}]\n\n${rawText}`
+          : rawText
+      )
       setScanProgress(100)
 
       // Extract line font heights for name hierarchy
