@@ -40,23 +40,40 @@ export async function POST(req: NextRequest) {
     }
 
     let cfGeminiKey = ''
+    let availableEnvKeys: string[] = []
     try {
       const ctx = await getCloudflareContext({ async: true })
       const envObj = ctx?.env as Record<string, unknown> | undefined
-      if (typeof envObj?.GEMINI_API_KEY === 'string') {
-        cfGeminiKey = envObj.GEMINI_API_KEY.trim()
+      if (envObj) {
+        availableEnvKeys = Object.keys(envObj)
+        const keyCandidate =
+          envObj.GEMINI_API_KEY ??
+          envObj.NEXT_PUBLIC_GEMINI_API_KEY ??
+          envObj.GOOGLE_API_KEY ??
+          envObj.GOOGLE_GENERATIVE_AI_API_KEY
+        if (typeof keyCandidate === 'string') {
+          cfGeminiKey = keyCandidate.trim()
+        }
       }
     } catch {
       // Running outside Cloudflare Workers context (e.g., local next dev)
     }
 
-    const apiKey = (customApiKey || '').trim() || cfGeminiKey || (process.env.GEMINI_API_KEY || '').trim()
+    const processKey = (
+      process.env.GEMINI_API_KEY ||
+      process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
+      process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+      ''
+    ).trim()
+
+    const apiKey = (customApiKey || '').trim() || cfGeminiKey || processKey
 
     if (!apiKey) {
       return NextResponse.json({
         success: false,
         useClientOCR: true,
-        error: 'GEMINI_API_KEY is not set in Cloudflare Runtime Variables & Secrets or process.env.',
+        error: `GEMINI_API_KEY is not set in Cloudflare Runtime Variables & Secrets or process.env. (Detected CF bindings: ${availableEnvKeys.join(', ') || 'none'})`,
       })
     }
 
