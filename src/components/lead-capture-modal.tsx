@@ -30,10 +30,8 @@ import {
 } from 'lucide-react'
 import { submitLead } from '@/app/actions/lead'
 import {
-  parseBusinessCardText,
   preprocessCardImage,
   DetectedContactNumber,
-  ParsedLineInfo,
 } from '@/lib/business-card-parser'
 import { toast } from 'sonner'
 import Image from 'next/image'
@@ -75,6 +73,7 @@ export function LeadCaptureModal({
   const [detectedEmails, setDetectedEmails] = useState<string[]>([])
   const [rawOcrText, setRawOcrText] = useState<string>('')
   const [showRawText, setShowRawText] = useState(false)
+  const [scanError, setScanError] = useState<string | null>(null)
 
   // Optional Free AI Vision Key configuration (Lazy initializers to satisfy React 19)
   const [geminiKey] = useState<string>(() => {
@@ -94,125 +93,65 @@ export function LeadCaptureModal({
     if (!file) return
 
     setIsScanning(true)
-    setScanProgress(15)
+    setScanProgress(20)
     setScanComplete(false)
     setShowRawText(false)
+    setScanError(null)
 
     try {
-      // 1. Clean image scaling without destructive pixel manipulation
+      // 1. Clean image scaling & EXIF orientation normalization
       const preprocessedUrl = await preprocessCardImage(file)
       setCardPhotoPreview(preprocessedUrl)
-      setScanProgress(30)
-
-      // 2. Try zero-error AI Vision via /api/scan-card Route Handler
-      let aiFallbackReason = ''
-      try {
-        const response = await fetch('/api/scan-card', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            image: preprocessedUrl,
-            customApiKey: geminiKey || undefined,
-          }),
-        })
-
-        if (response.ok) {
-          const res = await response.json()
-          if (res.success && res.data) {
-            const d = res.data
-            if (d.name) setName(d.name)
-            if (d.jobTitle) setJobTitle(d.jobTitle)
-            if (d.company) setCompany(d.company)
-            if (d.phone) {
-              setPhone(d.phone)
-              setDetectedPhones([{ number: d.phone, label: 'mobile', formattedLabel: 'Mobile' }])
-            }
-            if (d.email) {
-              setEmail(d.email)
-              setDetectedEmails([d.email])
-            }
-
-            setRawOcrText(
-              `[AI Vision Analysis]\nName: ${d.name || '-'}\nDesignation: ${d.jobTitle || '-'}\nCompany: ${d.company || '-'}\nPhone: ${d.phone || '-'}\nEmail: ${d.email || '-'}\nWebsite: ${d.website || '-'}\nAddress: ${d.address || '-'}`
-            )
-
-            // Notes left completely empty as requested
-            setNotes('')
-            setScanComplete(true)
-            setScanProgress(100)
-            toast.success('Card details extracted accurately via AI Vision!')
-            return
-          } else {
-            aiFallbackReason = res?.error || 'AI Vision returned no data'
-            console.warn('AI Vision did not succeed:', aiFallbackReason)
-          }
-        } else {
-          aiFallbackReason = `HTTP ${response.status}`
-        }
-      } catch (aiErr: unknown) {
-        aiFallbackReason = aiErr instanceof Error ? aiErr.message : 'Network error'
-        console.warn('AI Vision API call failed, falling back to on-device OCR:', aiErr)
-      }
-
-      // 3. Fallback: On-Device Probabilistic Classifier with Tesseract
       setScanProgress(45)
-      const Tesseract = (await import('tesseract.js')).default
 
-      const result = await Tesseract.recognize(preprocessedUrl, 'eng', {
-        logger: (m) => {
-          if (m.status === 'recognizing text' && typeof m.progress === 'number') {
-            setScanProgress(45 + Math.round(m.progress * 50))
-          }
-        },
+      // 2. Analyze exclusively with Gemini Vision via /api/scan-card
+      const response = await fetch('/api/scan-card', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image: preprocessedUrl,
+          customApiKey: geminiKey || undefined,
+        }),
       })
 
-      const rawText = result.data.text || ''
+      setScanProgress(85)
+
+      const res = await response.json().catch(() => null)
+
+      if (!response.ok || !res?.success || !res?.data) {
+        const errMsg = res?.error || `Gemini AI Vision failed (HTTP ${response.status})`
+        setScanError(errMsg)
+        toast.error(errMsg)
+        return
+      }
+
+      const d = res.data
+      if (d.name) setName(d.name)
+      if (d.jobTitle) setJobTitle(d.jobTitle)
+      if (d.company) setCompany(d.company)
+      if (d.phone) {
+        setPhone(d.phone)
+        setDetectedPhones([{ number: d.phone, label: 'mobile', formattedLabel: 'Mobile' }])
+      }
+      if (d.email) {
+        setEmail(d.email)
+        setDetectedEmails([d.email])
+      }
+
       setRawOcrText(
-        aiFallbackReason
-          ? `[AI Vision Fallback: ${aiFallbackReason}]\n\n${rawText}`
-          : rawText
+        `[AI Vision Analysis]\nName: ${d.name || '-'}\nDesignation: ${d.jobTitle || '-'}\nCompany: ${d.company || '-'}\nPhone: ${d.phone || '-'}\nEmail: ${d.email || '-'}\nWebsite: ${d.website || '-'}\nAddress: ${d.address || '-'}`
       )
-      setScanProgress(100)
-
-      // Extract line font heights for name hierarchy
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pageData = result.data as any
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const allLines = pageData.lines || pageData.paragraphs?.flatMap((p: any) => p.lines) || []
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const linesData: ParsedLineInfo[] = allLines.map((l: any) => ({
-        text: l.text || '',
-        height: l.bbox ? l.bbox.y1 - l.bbox.y0 : undefined,
-      }))
-
-      // Parse with Probabilistic Entity Scoring Classifier
-      const parsed = parseBusinessCardText(rawText, linesData)
-
-      if (parsed.name) setName(parsed.name)
-      if (parsed.jobTitle) setJobTitle(parsed.jobTitle)
-      if (parsed.company) setCompany(parsed.company)
-      if (parsed.phone) setPhone(parsed.phone)
-      if (parsed.email) setEmail(parsed.email)
-
-      setDetectedPhones(parsed.phoneNumbers)
-      setDetectedEmails(parsed.emails)
 
       // Notes left completely empty as requested
       setNotes('')
-
       setScanComplete(true)
-      if (aiFallbackReason) {
-        toast.warning(`AI Vision unavailable (${aiFallbackReason}). Extracted using offline OCR.`)
-      } else {
-        toast.success('Card scanned! Details extracted for verification.')
-      }
+      setScanProgress(100)
+      toast.success('Card details extracted via Gemini AI Vision!')
     } catch (err: unknown) {
-      console.error('OCR Card Scan error:', err)
-      let msg = err instanceof Error ? err.message : 'Could not scan card photo'
-      if (msg.toLowerCase().includes('minified react error') || msg.toLowerCase().includes('digest')) {
-        msg = 'Could not scan card automatically'
-      }
-      toast.error(`${msg}. You can enter details manually.`)
+      console.error('Gemini Card Scan error:', err)
+      const msg = err instanceof Error ? err.message : 'Could not scan card photo'
+      setScanError(msg)
+      toast.error(`${msg}. Please check your Gemini API key or enter details manually.`)
     } finally {
       setIsScanning(false)
       if (fileInputRef.current) {
@@ -417,6 +356,13 @@ export function LeadCaptureModal({
                       style={{ width: `${scanProgress}%` }}
                     />
                   </div>
+                </div>
+              )}
+
+              {/* Scan Error Message */}
+              {scanError && !isScanning && (
+                <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-[11px] text-rose-700 dark:text-rose-300 font-medium">
+                  <strong>Scan Error:</strong> {scanError}
                 </div>
               )}
 
